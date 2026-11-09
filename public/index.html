@@ -540,6 +540,7 @@
     async function fetchHistory(range = state.historyRange) {
       if (!state.token) return;
       state.historyRange = range;
+      updateHistoryRangeControlsDOM();
       try {
         const res = await api.get(`/api/telemetry/history/?range=${range}`);
         state.historyData = res.data;
@@ -547,6 +548,22 @@
       } catch (err) {
         console.warn('Error cargando historial desde /api/telemetry/', err);
       }
+    }
+
+    function updateHistoryRangeControlsDOM() {
+      const buttons = {
+        '24h': document.getElementById('history-range-24h'),
+        '7d': document.getElementById('history-range-7d')
+      };
+
+      Object.entries(buttons).forEach(([range, button]) => {
+        if (!button) return;
+        const isActive = state.historyRange === range;
+        button.classList.toggle('bg-[#2ECC71]', isActive);
+        button.classList.toggle('text-white', isActive);
+        button.classList.toggle('text-[#718096]', !isActive);
+        button.setAttribute('aria-pressed', String(isActive));
+      });
     }
 
     async function fetchUserPlants() {
@@ -1742,7 +1759,7 @@
         </header>
 
         <!-- Contenedor Principal del Panel Web -->
-        <main class="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8">
+        <main class="max-w-7xl mx-auto px-4 sm:px-8 py-6 sm:py-7 space-y-6">
 
           <!-- Resumen operativo -->
           <section id="operational-summary" class="${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs">
@@ -1809,7 +1826,7 @@
           <!-- ====================================================
                1. VISTA DE FLOTA (GRID DE MACETAS DEL OPERADOR)
                ==================================================== -->
-          <section class="${cardBg} border rounded-3xl p-6 sm:p-7 shadow-xs">
+          <section class="${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
               <div class="flex items-center gap-2.5">
                 <i data-lucide="layout-grid" class="w-5 h-5 text-[#2ECC71]"></i>
@@ -1825,7 +1842,7 @@
             </div>
 
             <!-- Grid de Macetas -->
-            <div id="fleet-grid-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div id="fleet-grid-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <!-- Se puebla dinámicamente con renderFleetGridDOM() -->
             </div>
           </section>
@@ -1834,10 +1851,10 @@
           <!-- ====================================================
                3. GEMELO DIGITAL 3D & TELEMETRÍA AMBIENTAL
                ==================================================== -->
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
             
             <!-- Columna Izquierda: GEMELO DIGITAL 3D (Three.js) VINCULADO A MACETA SELECCIONADA -->
-            <div class="lg:col-span-5 ${cardBg} border rounded-3xl p-6 shadow-xs flex flex-col justify-between">
+            <div class="lg:col-span-5 ${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col justify-between">
               <div>
                 <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
@@ -1994,10 +2011,10 @@
             <div class="lg:col-span-7 space-y-4 sm:space-y-5">
               
               <!-- Rejilla de 3 Sensores Clave -->
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 
                 <!-- Temperatura -->
-                <div class="rounded-3xl p-4 sm:p-5 border shadow-xs flex flex-col justify-between ${
+                <div class="rounded-3xl p-3.5 sm:p-4 border shadow-xs flex flex-col justify-between ${
                   isOled ? 'bg-[#121212] border-[#442211]' : 'bg-[#FFF0E5] border-[#F4C4A5]'
                 }">
                   <div>
@@ -2019,7 +2036,7 @@
                 </div>
 
                 <!-- Humedad -->
-                <div class="rounded-3xl p-4 sm:p-5 border shadow-xs flex flex-col justify-between ${
+                <div class="rounded-3xl p-3.5 sm:p-4 border shadow-xs flex flex-col justify-between ${
                   isOled ? 'bg-[#121212] border-[#0E2F44]' : 'bg-[#EAF4FF] border-[#B8D7F5]'
                 }">
                   <div>
@@ -2041,7 +2058,7 @@
                 </div>
 
                 <!-- Luz Solar -->
-                <div class="rounded-3xl p-4 sm:p-5 border shadow-xs flex flex-col justify-between ${
+                <div class="rounded-3xl p-3.5 sm:p-4 border shadow-xs flex flex-col justify-between ${
                   isOled ? 'bg-[#121212] border-[#3E3200]' : 'bg-[#FFF9DC] border-[#F1D58A]'
                 }">
                   <div>
@@ -2065,7 +2082,7 @@
               </div>
 
               <!-- Telemetría Histórica & Curvas de Tendencia (Amplitud y altura optimizada para visualización clara) -->
-              <div class="${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs">
+              <div class="${cardBg} border rounded-3xl p-5 shadow-xs">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                   <div class="flex items-center gap-2.5">
                     <div class="${isOled ? 'bg-[#1E3325]' : 'bg-[#E8F5E9]'} flex h-9 w-9 items-center justify-center rounded-xl text-[#2ECC71]">
@@ -2081,10 +2098,10 @@
                   <div class="flex items-center gap-1.5 p-1 rounded-xl border self-start sm:self-auto ${
                     isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-[#FFFFFF] border-[#E2E8F0]'
                   }">
-                    <button onclick="fetchHistory('24h')" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    <button id="history-range-24h" aria-pressed="${state.historyRange === '24h'}" onclick="fetchHistory('24h')" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       state.historyRange === '24h' ? 'bg-[#2ECC71] text-white' : 'text-[#718096]'
                     }">Últimas 24h</button>
-                    <button onclick="fetchHistory('7d')" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    <button id="history-range-7d" aria-pressed="${state.historyRange === '7d'}" onclick="fetchHistory('7d')" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       state.historyRange === '7d' ? 'bg-[#2ECC71] text-white' : 'text-[#718096]'
                     }">Últimos 7d</button>
                   </div>
@@ -2111,7 +2128,7 @@
               </div>
 
               <!-- Controles de Actuadores y Dosificación -->
-              <div id="actuators-container" class="${cardBg} border rounded-3xl p-5 shadow-xs">
+              <div id="actuators-container" class="${cardBg} border rounded-3xl p-4 shadow-xs">
                 <!-- Se actualiza dinámicamente con updateActuatorsDOM() -->
               </div>
 
