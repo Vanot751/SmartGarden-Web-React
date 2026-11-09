@@ -9,7 +9,7 @@ Django.
 - Node.js 20 o superior.
 - API-Django ejecutándose en `http://127.0.0.1:8000`.
 
-## Instalación y ejecución
+## Instalación y ejecución z
 
 ```powershell
 npm install
