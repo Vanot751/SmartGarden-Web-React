@@ -1618,8 +1618,8 @@
       if (footerMaxTemp) footerMaxTemp.textContent = `Límite Térmico: ${maxTemp.toFixed(1)}°C`;
       if (footerMinHum) footerMinHum.textContent = `Límite Hídrico: ${minHum.toFixed(1)}%`;
 
-      const maxTempLabel = `Umbral Máx Temp (${maxTemp}°C)`;
-      const minHumLabel = `Umbral Mín Humedad (${minHum}%)`;
+      const maxTempLabel = `Límite Máx. Temp (${maxTemp}°C)`;
+      const minHumLabel = `Límite Mín. Humedad (${minHum}%)`;
 
       if (
         state.chartInstance &&
@@ -1659,57 +1659,74 @@
             {
               label: 'Temperatura (°C)',
               data: temps,
-              borderColor: '#DD6B20',
-              backgroundColor: 'rgba(221, 107, 32, 0.08)',
+              borderColor: '#F97316',
+              backgroundColor: 'rgba(249, 115, 22, 0.10)',
+              pointBackgroundColor: '#F97316',
+              pointBorderColor: isOled ? '#121212' : '#FFFFFF',
+              pointBorderWidth: 1.5,
+              pointStyle: 'circle',
               borderWidth: 2.5,
               tension: 0.35,
-              pointRadius: 2.5,
+              pointRadius: 3.5,
               pointHoverRadius: 6,
               yAxisID: 'y'
             },
             {
               label: 'Humedad Suelo (%)',
               data: hums,
-              borderColor: '#2B6CB0',
-              backgroundColor: 'rgba(43, 108, 176, 0.08)',
+              borderColor: '#0EA5E9',
+              backgroundColor: 'rgba(14, 165, 233, 0.10)',
+              pointBackgroundColor: '#0EA5E9',
+              pointBorderColor: isOled ? '#121212' : '#FFFFFF',
+              pointBorderWidth: 1.5,
+              pointStyle: 'circle',
               borderWidth: 2.5,
               tension: 0.35,
-              pointRadius: 2.5,
+              pointRadius: 3.5,
               pointHoverRadius: 6,
               yAxisID: 'y'
             },
             {
               label: 'Radiación Solar (%)',
               data: lights,
-              borderColor: '#D69E2E',
-              backgroundColor: 'rgba(214, 158, 46, 0.12)',
-              borderWidth: 1.8,
-              borderDash: [4, 4],
+              borderColor: '#EAB308',
+              backgroundColor: 'rgba(234, 179, 8, 0.08)',
+              pointBackgroundColor: '#EAB308',
+              pointBorderColor: isOled ? '#121212' : '#FFFFFF',
+              pointBorderWidth: 1,
+              pointStyle: 'rectRot',
+              borderWidth: 2,
+              borderDash: [3, 3],
               tension: 0.35,
-              pointRadius: 1,
+              pointRadius: 3,
+              pointHoverRadius: 5,
               yAxisID: 'y'
             },
-            // Línea de Umbral Crítico Temperatura
+            // Línea de Umbral Crítico Temperatura (Línea segmentada roja)
             {
               label: maxTempLabel,
               data: labels.map(() => maxTemp),
-              borderColor: '#E53E3E',
-              backgroundColor: 'rgba(229, 62, 62, 0.12)',
-              borderWidth: 2,
-              borderDash: [8, 6],
+              borderColor: '#EF4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              pointStyle: 'line',
+              borderWidth: 2.2,
+              borderDash: [8, 5],
               pointRadius: 0,
+              pointHoverRadius: 4,
               fill: false,
               yAxisID: 'y'
             },
-            // Línea de Umbral Sequía Suelo
+            // Línea de Umbral Sequía Suelo (Línea segmentada violeta, distinta del azul de humedad)
             {
               label: minHumLabel,
               data: labels.map(() => minHum),
-              borderColor: '#3182CE',
-              backgroundColor: 'rgba(49, 130, 206, 0.12)',
-              borderWidth: 2,
-              borderDash: [8, 6],
+              borderColor: '#A855F7',
+              backgroundColor: 'rgba(168, 85, 247, 0.12)',
+              pointStyle: 'line',
+              borderWidth: 2.2,
+              borderDash: [8, 5],
               pointRadius: 0,
+              pointHoverRadius: 4,
               fill: false,
               yAxisID: 'y'
             }
@@ -1724,23 +1741,27 @@
               position: 'top',
               labels: {
                 color: textColor,
-                boxWidth: 12,
-                boxHeight: 12,
+                usePointStyle: true,
+                boxWidth: 22,
+                boxHeight: 10,
                 padding: 16,
-                font: { size: 13, family: 'Plus Jakarta Sans', weight: '600' },
+                font: { size: 12.5, family: 'Plus Jakarta Sans', weight: '600' },
                 generateLabels: (chart) => {
-                  return chart.data.datasets.map((ds, i) => ({
-                    text: ds.label,
-                    fillStyle: ds.backgroundColor || ds.borderColor,
-                    strokeStyle: ds.borderColor,
-                    lineWidth: 2,
-                    hidden: !chart.isDatasetVisible(i),
-                    datasetIndex: i,
-                    lineDash: [], // Elimina guiones y asegura cuadritos sólidos y uniformes
-                    pointStyle: 'rect',
-                    fontColor: textColor, // Color nítido en modo oscuro y claro
-                    color: textColor
-                  }));
+                  return chart.data.datasets.map((ds, i) => {
+                    const isThreshold = i >= 3;
+                    return {
+                      text: ds.label,
+                      fillStyle: isThreshold ? 'transparent' : ds.borderColor,
+                      strokeStyle: ds.borderColor,
+                      lineWidth: isThreshold ? 2.5 : 2,
+                      hidden: !chart.isDatasetVisible(i),
+                      datasetIndex: i,
+                      lineDash: isThreshold ? [5, 3] : [],
+                      pointStyle: ds.pointStyle || (isThreshold ? 'line' : 'circle'),
+                      fontColor: textColor,
+                      color: textColor
+                    };
+                  });
                 }
               }
             },
@@ -2430,14 +2451,19 @@
                   <canvas id="historyChart"></canvas>
                 </div>
 
-                <div class="mt-3.5 pt-3 border-t border-inherit flex flex-wrap items-center justify-between gap-2 text-xs text-[#718096]">
-                  <div class="flex items-center gap-4">
+                <div class="mt-3.5 pt-3 border-t border-inherit flex flex-wrap items-center justify-between gap-3 text-xs text-[#718096]">
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                    <span class="inline-flex items-center gap-1.5 font-medium">
+                      <span class="w-2.5 h-2.5 rounded-full bg-[#F97316] inline-block"></span>
+                      <span class="w-2.5 h-2.5 rounded-full bg-[#0EA5E9] inline-block -ml-1"></span>
+                      <span>Sensores (línea continua)</span>
+                    </span>
                     <span class="inline-flex items-center gap-1.5">
-                      <span class="w-3 h-0.5 bg-[#E53E3E] inline-block"></span>
+                      <span class="w-4 border-t-2 border-dashed border-[#EF4444] inline-block"></span>
                       <span id="chart-footer-max-temp">Límite Térmico: 35.0°C</span>
                     </span>
                     <span class="inline-flex items-center gap-1.5">
-                      <span class="w-3 h-0.5 bg-[#3182CE] inline-block"></span>
+                      <span class="w-4 border-t-2 border-dashed border-[#A855F7] inline-block"></span>
                       <span id="chart-footer-min-hum">Límite Hídrico: 30.0%</span>
                     </span>
                   </div>
