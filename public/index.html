@@ -532,7 +532,7 @@
 
         state.telemetry = data;
         state.lastUpdated = new Date().toLocaleTimeString();
-        updateSoilColor(data?.sensores?.humedadSuelo || 50);
+        updateSoilColor(getEffectiveTelemetry()?.sensores?.humedadSuelo || 50);
         updateTelemetryCardsDOM();
       } catch (err) {
         console.warn('Error telemetría', err);
@@ -801,6 +801,77 @@
     // ==========================================
     // SIMULADOR MANUAL IOT (TIPO ANDROID)
     // ==========================================
+    let simulationSyncTimer = null;
+
+    async function resolveSimulationModuleId() {
+      const selectedPlant = getSelectedPlant();
+      if (selectedPlant?.module) {
+        return typeof selectedPlant.module === 'object' ? selectedPlant.module.id : selectedPlant.module;
+      }
+      if (state.telemetry?.moduleId) {
+        return state.telemetry.moduleId;
+      }
+      if (state.simulationModuleId) {
+        return state.simulationModuleId;
+      }
+
+      const modulesResponse = await api.get('/api/modules/', { skipLoading: true });
+      const ownModules = modulesResponse.data.results || (
+        Array.isArray(modulesResponse.data) ? modulesResponse.data : []
+      );
+      if (ownModules.length > 0) {
+        state.simulationModuleId = ownModules[0].id;
+        return state.simulationModuleId;
+      }
+
+      const mac = crypto.randomUUID().replace(/-/g, '').slice(0, 12).match(/.{2}/g).join(':').toUpperCase();
+      const moduleRes = await api.post('/api/modules/', {
+        mac_address: mac,
+        nombre: 'Módulo Central SmartGarden'
+      }, { skipLoading: true });
+      state.simulationModuleId = moduleRes.data.id;
+      return state.simulationModuleId;
+    }
+
+    async function syncSimulatedTelemetryToBackend() {
+      if (!state.token || !state.simulation.active) return;
+
+      try {
+        const moduleId = await resolveSimulationModuleId();
+        if (!moduleId || !state.simulation.active) return;
+
+        const payload = {
+          module: moduleId,
+          temperatura: Number(Number(state.simulation.temperatura).toFixed(2)),
+          humedad: Number(Number(state.simulation.humedadSuelo).toFixed(2)),
+          luz: Number(Number(state.simulation.luzSolar ?? 78).toFixed(2))
+        };
+
+        await api.post(`/api/modules/${moduleId}/telemetry/`, payload, { skipLoading: true });
+        state.lastUpdated = new Date().toLocaleTimeString();
+        fetchHistory(state.historyRange);
+      } catch (err) {
+        console.warn('No se pudo registrar la telemetría simulada en el backend:', err);
+      }
+    }
+
+    function scheduleSimulationSync(immediate = false) {
+      if (simulationSyncTimer) {
+        clearTimeout(simulationSyncTimer);
+        simulationSyncTimer = null;
+      }
+      if (!state.simulation.active) return;
+
+      if (immediate) {
+        syncSimulatedTelemetryToBackend();
+      } else {
+        simulationSyncTimer = setTimeout(() => {
+          simulationSyncTimer = null;
+          syncSimulatedTelemetryToBackend();
+        }, 400);
+      }
+    }
+
     function setSimulationParam(param, val) {
       state.simulation.active = true;
       state.simulation[param] = parseFloat(val);
@@ -809,6 +880,7 @@
       updateTelemetryCardsDOM();
       updateTwinDOM();
       renderFleetGridDOM();
+      scheduleSimulationSync(false);
     }
 
     function triggerSimulationPreset(preset) {
@@ -837,13 +909,19 @@
       updateTelemetryCardsDOM();
       updateTwinDOM();
       renderFleetGridDOM();
+      scheduleSimulationSync(true);
     }
 
     function resetSimulationToReal() {
+      if (simulationSyncTimer) {
+        clearTimeout(simulationSyncTimer);
+        simulationSyncTimer = null;
+      }
       state.simulation.active = false;
       removeSimulationForSelectedPlant();
       updateSimulatorDOM();
       fetchTelemetry(true);
+      fetchHistory(state.historyRange);
     }
 
     function getSimulationStorage() {
