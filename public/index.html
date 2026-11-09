@@ -155,11 +155,19 @@
     // ==========================================
     // INSTANCIA AXIOS CON JWT Y PROTECCIÓN CSRF
     // ==========================================
+    function normalizeApiBaseUrl(rawUrl) {
+      if (!rawUrl || typeof rawUrl !== 'string') return '';
+      return rawUrl.trim().replace(/\/+$/, '').replace(/\/api$/i, '');
+    }
+
+    const API_BASE_URL = normalizeApiBaseUrl(window.__VITE_API_URL__ || '');
+
     axios.defaults.xsrfCookieName = 'csrftoken';
     axios.defaults.xsrfHeaderName = 'X-CSRFToken';
+    axios.defaults.baseURL = API_BASE_URL || '/';
 
     const api = axios.create({
-      baseURL: '/',
+      baseURL: API_BASE_URL || '/',
       headers: { 'Content-Type': 'application/json' },
       timeout: 10000
     });

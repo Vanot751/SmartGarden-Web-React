@@ -129,6 +129,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -183,3 +185,4 @@ cython_debug/
 # Frontend
 node_modules/
 dist/
+.vercel/
