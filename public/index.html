@@ -130,6 +130,8 @@
       selectedFleetPlantId: localStorage.getItem('smartgarden_selected_plant') ? parseInt(localStorage.getItem('smartgarden_selected_plant'), 10) : null,
       searchResults: [],
       isSearching: false,
+      searchError: null,
+      searchRequestId: 0,
       searchQuery: '',
       selectedPlantForConfig: null,
       pollInterval: null,
@@ -900,8 +902,10 @@
       const humSlider = document.getElementById('sim-hum-slider');
 
       if (badge) {
-        badge.className = `text-[9px] font-bold px-2 py-0.5 rounded-full ${
-          state.simulation.active ? 'bg-amber-500 text-white animate-pulse' : 'bg-black/10 dark:bg-white/10 text-[#718096]'
+        badge.className = `inline-flex items-center whitespace-nowrap text-[9px] leading-none font-bold px-2.5 py-1 rounded-full border transition-colors ${
+          state.simulation.active
+            ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-300'
+            : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-[#718096]'
         }`;
         badge.innerText = state.simulation.active ? 'Simulación Activa' : 'Sensores Reales';
       }
@@ -925,6 +929,8 @@
     async function searchPlants(query) {
       state.searchQuery = query;
       const normalizedQuery = query.trim();
+      const requestId = ++state.searchRequestId;
+      state.searchError = null;
 
       if (!normalizedQuery) {
         state.isSearching = false;
@@ -938,26 +944,29 @@
 
       try {
         const res = await api.get(`/api/plants/search/?q=${encodeURIComponent(normalizedQuery)}`);
-        setTimeout(() => {
-          const rawItems = res.data.results || (Array.isArray(res.data) ? res.data : []);
-          state.searchResults = rawItems.map((p, idx) => ({
-            id: p.id || p.api_species_id || (idx + 1),
-            nombre_comun: p.nombre_comun || p.common_name || (p.apodo || 'Especie Botánica'),
-            especie: p.especie || p.scientific_name || 'Planta',
-            familia: p.familia || p.family || (Array.isArray(p.sunlight) ? `Sol: ${p.sunlight.join(', ')}` : 'FloraSense'),
-            imagen_url: p.imagen_url || p.thumbnail || 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?w=600&auto=format&fit=crop&q=80',
-            temp_max: p.temp_max || 32.0,
-            temp_min: p.temp_min || 16.0,
-            humedad_min: p.humedad_min || p.humidity_min || (p.watering === 'Frequent' ? 45.0 : p.watering === 'Average' ? 30.0 : 20.0),
-            dosis_riego_ml: p.dosis_riego_ml || p.watering_ml || 100,
-            luz_optima: Array.isArray(p.sunlight) ? p.sunlight.join(', ') : (p.sunlight || 'Luz indirecta'),
-            descripcion: p.descripcion || p.description || (p.watering ? `Riego: ${p.watering}. Exposición: ${Array.isArray(p.sunlight) ? p.sunlight.join(', ') : 'buena luz'}.` : 'Especie botánica indexada.')
-          }));
-          state.isSearching = false;
-          renderSearchResultsDOM();
-        }, 300);
-      } catch (err) {
+        if (requestId !== state.searchRequestId || normalizedQuery !== state.searchQuery.trim()) return;
+
+        const rawItems = res.data.results || (Array.isArray(res.data) ? res.data : []);
+        state.searchResults = rawItems.map((p, idx) => ({
+          id: p.id || p.api_species_id || (idx + 1),
+          nombre_comun: p.nombre_comun || p.common_name || (p.apodo || 'Especie Botánica'),
+          especie: p.especie || p.scientific_name || 'Planta',
+          familia: p.familia || p.family || (Array.isArray(p.sunlight) ? `Sol: ${p.sunlight.join(', ')}` : 'FloraSense'),
+          imagen_url: p.imagen_url || p.thumbnail || 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?w=600&auto=format&fit=crop&q=80',
+          temp_max: p.temp_max || 32.0,
+          temp_min: p.temp_min || 16.0,
+          humedad_min: p.humedad_min || p.humidity_min || (p.watering === 'Frequent' ? 45.0 : p.watering === 'Average' ? 30.0 : 20.0),
+          dosis_riego_ml: p.dosis_riego_ml || p.watering_ml || 100,
+          luz_optima: Array.isArray(p.sunlight) ? p.sunlight.join(', ') : (p.sunlight || 'Luz indirecta'),
+          descripcion: p.descripcion || p.description || (p.watering ? `Riego: ${p.watering}. Exposición: ${Array.isArray(p.sunlight) ? p.sunlight.join(', ') : 'buena luz'}.` : 'Especie botánica indexada.')
+        }));
         state.isSearching = false;
+        renderSearchResultsDOM();
+      } catch (err) {
+        if (requestId !== state.searchRequestId) return;
+        state.isSearching = false;
+        state.searchResults = [];
+        state.searchError = err.response?.data?.error || 'No se pudo consultar el catálogo botánico. Intenta nuevamente.';
         renderSearchResultsDOM();
       }
     }
@@ -1940,15 +1949,21 @@
               <div class="mt-3.5 p-3.5 rounded-2xl border ${
                 isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-[#FAFAF8] border-[#E8ECE7]'
               }">
-                <div class="flex items-center justify-between mb-2">
-                  <div class="flex items-center gap-1.5">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <div class="flex min-w-0 flex-wrap items-center gap-1.5">
                     <i data-lucide="sliders" class="w-3.5 h-3.5 text-[#2ECC71]"></i>
                     <span class="text-xs font-bold uppercase tracking-wide">Simulador Manual IoT</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[#718096] font-semibold">Tipo Android</span>
+                    <span class="inline-flex items-center rounded-full border px-2 py-1 text-[8px] leading-none font-bold uppercase tracking-wider ${
+                      isOled
+                        ? 'border-[#3A3A3A] bg-[#222] text-[#A0A0A0]'
+                        : 'border-[#D8DCCB] bg-white text-[#718096]'
+                    }">Tipo Android</span>
                   </div>
-                  <div class="flex items-center gap-2">
-                    <span id="sim-status-badge" class="text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                      state.simulation.active ? 'bg-amber-500 text-white animate-pulse' : 'bg-black/10 dark:bg-white/10 text-[#718096]'
+                  <div class="flex shrink-0 items-center gap-2">
+                    <span id="sim-status-badge" class="inline-flex items-center whitespace-nowrap text-[9px] leading-none font-bold px-2.5 py-1 rounded-full border ${
+                      state.simulation.active
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-300'
+                        : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-[#718096]'
                     }">
                       ${state.simulation.active ? 'Simulación Activa' : 'Sensores Reales'}
                     </span>
@@ -2465,6 +2480,14 @@
       if (state.searchResults.length === 0) {
         if (!state.searchQuery.trim()) {
           container.innerHTML = '';
+          return;
+        }
+        if (state.searchError) {
+          container.innerHTML = `
+            <div class="col-span-full p-8 text-center text-xs text-[#C53030]">
+              ${state.searchError}
+            </div>
+          `;
           return;
         }
         container.innerHTML = `
