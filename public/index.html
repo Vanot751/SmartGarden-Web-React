@@ -123,6 +123,9 @@
       refreshToken: localStorage.getItem('refresh_token') || null,
       operator: localStorage.getItem('operator_user') || 'Operador',
       telemetry: null,
+      telemetryByModule: {},
+      isSyncingSimulation: false,
+      lastLocalSimEdit: 0,
       historyRange: '24h',
       historyData: null,
       chartInstance: null,
@@ -474,64 +477,113 @@
       render();
     }
 
+    function getPlantModuleId(plant) {
+      if (!plant || !plant.module) return null;
+      return typeof plant.module === 'object' ? plant.module.id : plant.module;
+    }
+
+    function parseTelemetryItem(item, prevActuators) {
+      const tempVal = typeof item.temperatura === 'number' ? item.temperatura : 26.4;
+      const humVal = typeof item.humedad === 'number' ? item.humedad : (typeof item.humedadSuelo === 'number' ? item.humedadSuelo : 52.0);
+      const rawLuzVal = typeof item.luz === 'number' ? item.luz : (typeof item.luzSolar === 'number' ? item.luzSolar : 78.0);
+      const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
+
+      return {
+        nodo: item.module ? `Módulo IoT #${item.module}` : 'nodo_central_01',
+        moduleId: item.module || 1,
+        sensores: {
+          temperatura: tempVal,
+          humedadSuelo: humVal,
+          luzSolar: luzVal
+        },
+        actuadores: prevActuators || {
+          bombaAgua: false,
+          nebulizador: false,
+          dosisRiegoMl: 100,
+          paradaEmergencia: false
+        },
+        timestamp: item.timestamp || new Date().toISOString()
+      };
+    }
+
+    function isLocalUserDraggingSimulator() {
+      return Boolean(
+        simulationSyncTimer ||
+        state.isSyncingSimulation ||
+        (Date.now() - state.lastLocalSimEdit <= 1200)
+      );
+    }
+
+    function syncSimulatorWithActiveTelemetry() {
+      if (isLocalUserDraggingSimulator()) return;
+
+      const selectedPlant = getSelectedPlant();
+      const selectedModId = getPlantModuleId(selectedPlant);
+      const moduleTelemetry = selectedModId ? state.telemetryByModule[String(selectedModId)] : null;
+      const targetTelemetry = moduleTelemetry || state.telemetry;
+
+      if (targetTelemetry && targetTelemetry.sensores) {
+        state.simulation.temperatura = Number(targetTelemetry.sensores.temperatura);
+        state.simulation.humedadSuelo = Number(targetTelemetry.sensores.humedadSuelo);
+        state.simulation.luzSolar = Number(targetTelemetry.sensores.luzSolar ?? 78);
+      }
+      updateSimulatorDOM();
+    }
+
     async function fetchTelemetry(showLoading = false) {
       if (!state.token) return;
       try {
         const res = await api.get('/api/telemetry/', { skipLoading: !showLoading });
         let data = res.data;
+        const prevActuators = state.telemetry?.actuadores || {
+          bombaAgua: false,
+          nebulizador: false,
+          dosisRiegoMl: 100,
+          paradaEmergencia: false
+        };
 
         // Soporte inteligente para la telemetría paginada del backend { count, results: [...] }
         if (data && data.results && Array.isArray(data.results)) {
-          const latest = data.results[0] || {};
-          const prevActuators = state.telemetry?.actuadores || {
-            bombaAgua: false,
-            nebulizador: false,
-            dosisRiegoMl: 100,
-            paradaEmergencia: false
-          };
+          const seenModules = new Set();
+          for (const item of data.results) {
+            if (item && item.module && !seenModules.has(String(item.module))) {
+              seenModules.add(String(item.module));
+              state.telemetryByModule[String(item.module)] = parseTelemetryItem(item, prevActuators);
+            }
+          }
 
-          const tempVal = typeof latest.temperatura === 'number' ? latest.temperatura : 26.4;
-          const humVal = typeof latest.humedad === 'number' ? latest.humedad : (typeof latest.humedadSuelo === 'number' ? latest.humedadSuelo : 52.0);
-          const rawLuzVal = typeof latest.luz === 'number' ? latest.luz : (typeof latest.luzSolar === 'number' ? latest.luzSolar : 78.0);
-          const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
+          const selectedPlant = getSelectedPlant();
+          const selectedModId = getPlantModuleId(selectedPlant);
 
-          data = {
-            nodo: latest.module ? `Módulo IoT #${latest.module}` : 'nodo_central_01',
-            moduleId: latest.module || 1,
-            sensores: {
-              temperatura: tempVal,
-              humedadSuelo: humVal,
-              luzSolar: luzVal
-            },
-            actuadores: prevActuators,
-            timestamp: latest.timestamp || new Date().toISOString()
-          };
+          if (selectedModId && !state.telemetryByModule[String(selectedModId)]) {
+            try {
+              const modRes = await api.get(`/api/telemetry/?module=${selectedModId}`, { skipLoading: true });
+              const modResults = modRes.data?.results || (Array.isArray(modRes.data) ? modRes.data : []);
+              if (modResults.length > 0) {
+                state.telemetryByModule[String(selectedModId)] = parseTelemetryItem(modResults[0], prevActuators);
+              }
+            } catch (modErr) {
+              console.warn('Error consultando telemetría específica del módulo', modErr);
+            }
+          }
+
+          if (selectedModId && state.telemetryByModule[String(selectedModId)]) {
+            data = state.telemetryByModule[String(selectedModId)];
+          } else {
+            const latest = data.results[0] || {};
+            data = parseTelemetryItem(latest, prevActuators);
+          }
         } else if (data && typeof data.temperatura === 'number' && !data.sensores) {
           // Objeto plano
-          const tempVal = data.temperatura;
-          const humVal = typeof data.humedad === 'number' ? data.humedad : (data.humedadSuelo || 52.0);
-          const rawLuzVal = typeof data.luz === 'number' ? data.luz : (data.luzSolar || 78.0);
-          const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
-
-          data = {
-            nodo: data.module ? `Módulo IoT #${data.module}` : 'nodo_central_01',
-            sensores: {
-              temperatura: tempVal,
-              humedadSuelo: humVal,
-              luzSolar: luzVal
-            },
-            actuadores: state.telemetry?.actuadores || {
-              bombaAgua: false,
-              nebulizador: false,
-              dosisRiegoMl: 100,
-              paradaEmergencia: false
-            },
-            timestamp: data.timestamp || new Date().toISOString()
-          };
+          data = parseTelemetryItem(data, prevActuators);
+          if (data.moduleId) {
+            state.telemetryByModule[String(data.moduleId)] = data;
+          }
         }
 
         state.telemetry = data;
         state.lastUpdated = new Date().toLocaleTimeString();
+        syncSimulatorWithActiveTelemetry();
         updateSoilColor(getEffectiveTelemetry()?.sensores?.humedadSuelo || 50);
         updateTelemetryCardsDOM();
       } catch (err) {
@@ -571,6 +623,7 @@
     async function fetchUserPlants() {
       if (!state.token) return;
       try {
+        localStorage.removeItem('smartgarden_plant_simulations');
         const res = await api.get('/api/user-plants/');
         const rawPlants = res.data.results || (Array.isArray(res.data) ? res.data : []);
         state.userPlants = rawPlants.map((plant) => ({
@@ -590,7 +643,7 @@
             state.selectedFleetPlantId = state.userPlants[0].id;
             localStorage.setItem('smartgarden_selected_plant', state.selectedFleetPlantId);
           }
-          restoreSimulationForSelectedPlant();
+          syncSimulatorWithActiveTelemetry();
         } else {
           state.selectedFleetPlantId = null;
           localStorage.removeItem('smartgarden_selected_plant');
@@ -601,6 +654,7 @@
         updateTelemetryCardsDOM();
         renderFleetGridDOM();
         updateTwinDOM();
+        await fetchTelemetry(false);
       } catch (err) {
         console.warn('Error flota plantas', err);
       }
@@ -630,43 +684,49 @@
     }
 
     function getEffectiveTelemetry() {
-      if (state.simulation.active) {
+      const defaultActuators = state.telemetry?.actuadores || {
+        bombaAgua: false,
+        nebulizador: false,
+        dosisRiegoMl: 100,
+        paradaEmergencia: false
+      };
+
+      if (isLocalUserDraggingSimulator()) {
         return {
           sensores: {
             temperatura: state.simulation.temperatura,
             humedadSuelo: state.simulation.humedadSuelo,
             luzSolar: state.simulation.luzSolar
           },
-          actuadores: state.telemetry?.actuadores || { bombaAgua: false, nebulizador: false, dosisRiegoMl: 100, paradaEmergencia: false }
+          actuadores: defaultActuators
         };
       }
+
+      const selectedPlant = getSelectedPlant();
+      const selectedModId = getPlantModuleId(selectedPlant);
+      if (selectedModId && state.telemetryByModule[String(selectedModId)]) {
+        return state.telemetryByModule[String(selectedModId)];
+      }
+
       return state.telemetry || {
-        sensores: { temperatura: 26.4, humedadSuelo: 52, luzSolar: 78 },
-        actuadores: { bombaAgua: false, nebulizador: false, dosisRiegoMl: 100, paradaEmergencia: false }
+        sensores: {
+          temperatura: state.simulation.temperatura ?? 26.4,
+          humedadSuelo: state.simulation.humedadSuelo ?? 52,
+          luzSolar: state.simulation.luzSolar ?? 78
+        },
+        actuadores: defaultActuators
       };
     }
 
     function getPlantTelemetry(plant) {
       const isSelected = plant?.id === state.selectedFleetPlantId;
-      if (isSelected && state.simulation.active) {
+      if (isSelected && isLocalUserDraggingSimulator()) {
         return getEffectiveTelemetry();
       }
 
-      const savedSimulation = getSimulationStorage()[String(plant?.id)];
-      if (savedSimulation?.active) {
-        return {
-          sensores: {
-            temperatura: Number(savedSimulation.temperatura),
-            humedadSuelo: Number(savedSimulation.humedadSuelo),
-            luzSolar: Number(savedSimulation.luzSolar)
-          },
-          actuadores: state.telemetry?.actuadores || {
-            bombaAgua: false,
-            nebulizador: false,
-            dosisRiegoMl: 100,
-            paradaEmergencia: false
-          }
-        };
+      const modId = getPlantModuleId(plant);
+      if (modId && state.telemetryByModule[String(modId)]) {
+        return state.telemetryByModule[String(modId)];
       }
 
       return state.telemetry || {
@@ -764,10 +824,16 @@
     function selectFleetPlant(plantId) {
       state.selectedFleetPlantId = plantId;
       localStorage.setItem('smartgarden_selected_plant', plantId);
-      restoreSimulationForSelectedPlant();
-      updateSimulatorDOM();
+      const selectedPlant = getSelectedPlant();
+      const selectedModId = getPlantModuleId(selectedPlant);
+      if (selectedModId && state.telemetryByModule[String(selectedModId)]) {
+        state.telemetry = state.telemetryByModule[String(selectedModId)];
+      }
+      syncSimulatorWithActiveTelemetry();
+      updateTelemetryCardsDOM();
       renderFleetGridDOM();
       updateTwinDOM();
+      fetchTelemetry(false);
     }
 
     async function deleteFleetPlant(e, plantId, plantName) {
@@ -803,6 +869,34 @@
     // ==========================================
     let simulationSyncTimer = null;
 
+    function updateOptimisticModuleTelemetry() {
+      const selectedPlant = getSelectedPlant();
+      const modId = getPlantModuleId(selectedPlant) || state.telemetry?.moduleId || state.simulationModuleId;
+      if (!modId) return;
+
+      const prevActuators = state.telemetry?.actuadores || {
+        bombaAgua: false,
+        nebulizador: false,
+        dosisRiegoMl: 100,
+        paradaEmergencia: false
+      };
+
+      const updated = {
+        nodo: `Módulo IoT #${modId}`,
+        moduleId: modId,
+        sensores: {
+          temperatura: Number(state.simulation.temperatura),
+          humedadSuelo: Number(state.simulation.humedadSuelo),
+          luzSolar: Number(state.simulation.luzSolar ?? 78)
+        },
+        actuadores: prevActuators,
+        timestamp: new Date().toISOString()
+      };
+
+      state.telemetryByModule[String(modId)] = updated;
+      state.telemetry = updated;
+    }
+
     async function resolveSimulationModuleId() {
       const selectedPlant = getSelectedPlant();
       if (selectedPlant?.module) {
@@ -836,6 +930,7 @@
     async function syncSimulatedTelemetryToBackend() {
       if (!state.token || !state.simulation.active) return;
 
+      state.isSyncingSimulation = true;
       try {
         const moduleId = await resolveSimulationModuleId();
         if (!moduleId || !state.simulation.active) return;
@@ -852,6 +947,8 @@
         fetchHistory(state.historyRange);
       } catch (err) {
         console.warn('No se pudo registrar la telemetría simulada en el backend:', err);
+      } finally {
+        state.isSyncingSimulation = false;
       }
     }
 
@@ -868,14 +965,15 @@
         simulationSyncTimer = setTimeout(() => {
           simulationSyncTimer = null;
           syncSimulatedTelemetryToBackend();
-        }, 400);
+        }, 300);
       }
     }
 
     function setSimulationParam(param, val) {
       state.simulation.active = true;
+      state.lastLocalSimEdit = Date.now();
       state.simulation[param] = parseFloat(val);
-      persistSimulationForSelectedPlant();
+      updateOptimisticModuleTelemetry();
       updateSimulatorDOM();
       updateTelemetryCardsDOM();
       updateTwinDOM();
@@ -885,6 +983,7 @@
 
     function triggerSimulationPreset(preset) {
       state.simulation.active = true;
+      state.lastLocalSimEdit = Date.now();
       const plant = getSelectedPlant();
       const minH = plant?.humedad_min || 30.0;
       const maxT = plant?.temp_max || 35.0;
@@ -904,7 +1003,7 @@
         state.simulation.humedadSuelo = minH + 18;
       }
 
-      persistSimulationForSelectedPlant();
+      updateOptimisticModuleTelemetry();
       updateSimulatorDOM();
       updateTelemetryCardsDOM();
       updateTwinDOM();
@@ -917,8 +1016,10 @@
         clearTimeout(simulationSyncTimer);
         simulationSyncTimer = null;
       }
+      state.isSyncingSimulation = false;
+      state.lastLocalSimEdit = 0;
       state.simulation.active = false;
-      removeSimulationForSelectedPlant();
+      localStorage.removeItem('smartgarden_plant_simulations');
       updateSimulatorDOM();
       fetchTelemetry(true);
       fetchHistory(state.historyRange);
@@ -1111,15 +1212,15 @@
     }
 
     function initDashboardData() {
+      fetchUserPlants();
       fetchTelemetry(true);
       fetchHistory('24h');
-      fetchUserPlants();
       state.searchResults = [];
       state.searchQuery = '';
       state.isSearching = false;
       renderSearchResultsDOM();
       if (state.pollInterval) clearInterval(state.pollInterval);
-      state.pollInterval = setInterval(() => fetchTelemetry(false), 6000);
+      state.pollInterval = setInterval(() => fetchTelemetry(false), 2500);
       setTimeout(() => initThreeJs(), 150);
     }
 
