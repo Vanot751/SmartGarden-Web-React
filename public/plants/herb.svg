@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#edf5dc"/>
+  <path d="M400 470C390 350 355 260 290 150M400 470c15-125 65-230 145-310M400 420c-65-80-125-105-185-110M405 400c65-70 130-80 190-70" fill="none" stroke="#3b8054" stroke-width="18" stroke-linecap="round"/>
+  <ellipse cx="285" cy="150" rx="35" ry="78" fill="#73ad5e" transform="rotate(-35 285 150)"/><ellipse cx="545" cy="160" rx="35" ry="78" fill="#5e9d53" transform="rotate(35 545 160)"/>
+  <ellipse cx="215" cy="310" rx="32" ry="70" fill="#82b968" transform="rotate(-75 215 310)"/><ellipse cx="595" cy="330" rx="32" ry="70" fill="#6ba95b" transform="rotate(75 595 330)"/>
+  <path d="M270 475h260l-32 80H302z" fill="#b87855"/>
+  <text x="400" y="70" text-anchor="middle" font-family="Arial" font-size="34" fill="#365b38">Hierbas aromáticas</text>
+</svg>

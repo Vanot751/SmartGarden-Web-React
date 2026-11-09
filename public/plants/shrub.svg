@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#e7f2dc"/>
+  <circle cx="300" cy="230" r="120" fill="#75ae68"/><circle cx="480" cy="220" r="135" fill="#5f9b5b"/><circle cx="400" cy="145" r="105" fill="#8bc477"/>
+  <path d="M400 260v210M400 380L285 280M400 370l125-110" fill="none" stroke="#4d7545" stroke-width="24" stroke-linecap="round"/>
+  <path d="M270 470h260l-32 85H302z" fill="#b87855"/>
+  <text x="400" y="70" text-anchor="middle" font-family="Arial" font-size="34" fill="#31552f">Arbustos y coberturas</text>
+</svg>

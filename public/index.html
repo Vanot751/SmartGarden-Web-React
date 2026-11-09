@@ -1,0 +1,2721 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="pastel">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartGarden | Pasarela Botánica IoT Experta</title>
+  
+  <!-- Favicon con el logo oficial -->
+  <link rel="icon" type="image/png" href="/SmartGarden.png">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Axios CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Three.js CDN (Gemelo Digital 3D) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            pastel: {
+              canvas: '#F1F3EA',
+              card: '#FFFDF8',
+              border: '#D8DCCB',
+              peach: '#FFF0E5',
+              water: '#EAF4FF',
+              sun: '#FFF9DC',
+              emerald: '#2ECC71',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    
+    /* Escala tipográfica global al 110% (16px * 1.1 = 17.6px) para visualización cómoda por defecto sin requerir zoom en el navegador */
+    html {
+      font-size: 17.6px;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    /* Escalado de micro-etiquetas para legibilidad óptima */
+    .text-\[9px\] { font-size: 11px !important; }
+    .text-\[10px\] { font-size: 12px !important; }
+    .text-\[11px\] { font-size: 13px !important; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    .oled-canvas { background-color: #000000 !important; color: #E0E0E0 !important; }
+    .pastel-canvas { background-color: #F1F3EA !important; color: #2D3748 !important; }
+    .pastel-canvas .border {
+      box-shadow: 0 1px 2px rgba(89, 105, 78, 0.08);
+    }
+    .oled-canvas .border {
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    }
+
+    /* Indicador global para peticiones de red */
+    #api-loading-indicator {
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -8px) scale(0.96);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    #api-loading-indicator.is-visible {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+    #api-loading-indicator .api-loading-spinner {
+      animation: api-loading-spin 1.1s linear infinite;
+    }
+    @keyframes api-loading-spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Scrollbar estilizada */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E0; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #333333; }
+  </style>
+</head>
+<body class="pastel-canvas min-h-screen">
+
+  <div id="app">
+    <!-- Renderizado dinámico vía JavaScript -->
+  </div>
+
+  <!-- Modal para Ajuste Fino de Parámetros de la Planta -->
+  <div id="plant-modal-container"></div>
+
+  <div id="api-loading-indicator" role="status" aria-live="polite" aria-label="Cargando datos desde la API"
+    class="fixed left-1/2 top-5 z-[90] flex items-center gap-3 rounded-2xl border border-[#2ECC71]/40 bg-[#121212]/95 px-4 py-3 text-white shadow-2xl shadow-[#2ECC71]/10 backdrop-blur-md">
+    <div class="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-[#2ECC71]/40 bg-[#2ECC71]/10">
+      <img src="/SmartGarden.png" alt="" class="h-7 w-7 object-contain">
+      <span class="api-loading-spinner absolute inset-1 rounded-full border-2 border-transparent border-t-[#2ECC71] border-r-[#2ECC71]"></span>
+    </div>
+    <div>
+      <p class="text-[10px] font-bold uppercase tracking-wider text-[#2ECC71]">SmartGarden</p>
+      <p id="api-loading-message" class="mt-0.5 text-xs font-semibold">Sincronizando con la API...</p>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // ESTADO GLOBAL DE LA APLICACIÓN
+    // ==========================================
+    const state = {
+      theme: localStorage.getItem('smartgarden_theme') || 'pastel',
+      token: localStorage.getItem('access_token') || null,
+      refreshToken: localStorage.getItem('refresh_token') || null,
+      operator: localStorage.getItem('operator_user') || 'Operador',
+      telemetry: null,
+      historyRange: '24h',
+      historyData: null,
+      chartInstance: null,
+      userPlants: [],
+      selectedFleetPlantId: localStorage.getItem('smartgarden_selected_plant') ? parseInt(localStorage.getItem('smartgarden_selected_plant'), 10) : null,
+      searchResults: [],
+      isSearching: false,
+      searchQuery: '',
+      selectedPlantForConfig: null,
+      pollInterval: null,
+      lastUpdated: null,
+      authMode: 'login',
+      simulation: {
+        active: false,
+        temperatura: 26.4,
+        humedadSuelo: 52,
+        luzSolar: 78
+      },
+      telemetryExpanded: localStorage.getItem('smartgarden_telemetry_expanded') === 'true',
+      activationNotice: null
+    };
+
+    // ==========================================
+    // INSTANCIA AXIOS CON JWT Y PROTECCIÓN CSRF
+    // ==========================================
+    axios.defaults.xsrfCookieName = 'csrftoken';
+    axios.defaults.xsrfHeaderName = 'X-CSRFToken';
+
+    const api = axios.create({
+      baseURL: '/',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 10000
+    });
+
+    let pendingApiRequests = 0;
+    let apiLoadingTimer = null;
+    let apiLoadingVisible = false;
+
+    function getApiLoadingMessage(config) {
+      const url = config?.url || '';
+      if (url.includes('/auth/')) return 'Autenticando usuario...';
+      if (url.includes('/user-plants/')) return 'Guardando tu maceta...';
+      if (url.includes('/modules/')) return 'Preparando el módulo...';
+      if (url.includes('/plants/search/')) return 'Buscando especies botánicas...';
+      if (url.includes('/telemetry')) return 'Actualizando telemetría...';
+      return 'Sincronizando con la API...';
+    }
+
+    function showApiLoading(config) {
+      pendingApiRequests += 1;
+      const indicator = document.getElementById('api-loading-indicator');
+      const message = document.getElementById('api-loading-message');
+      if (!indicator || !message) return;
+
+      message.textContent = getApiLoadingMessage(config);
+      if (apiLoadingVisible || apiLoadingTimer) return;
+
+      apiLoadingTimer = setTimeout(() => {
+        apiLoadingTimer = null;
+        if (pendingApiRequests <= 0) return;
+        apiLoadingVisible = true;
+        indicator.classList.add('is-visible');
+      }, 150);
+    }
+
+    function hideApiLoading() {
+      pendingApiRequests = Math.max(0, pendingApiRequests - 1);
+      if (pendingApiRequests > 0) return;
+
+      if (apiLoadingTimer) {
+        clearTimeout(apiLoadingTimer);
+        apiLoadingTimer = null;
+      }
+      const indicator = document.getElementById('api-loading-indicator');
+      if (indicator) indicator.classList.remove('is-visible');
+      apiLoadingVisible = false;
+    }
+
+    function addApiLoadingInterceptors(client) {
+      client.interceptors.request.use(
+        (config) => {
+          if (!config.skipLoading) showApiLoading(config);
+          return config;
+        },
+        (error) => {
+          if (!error.config?.skipLoading) hideApiLoading();
+          return Promise.reject(error);
+        }
+      );
+      client.interceptors.response.use(
+        (response) => {
+          if (!response.config?.skipLoading) hideApiLoading();
+          return response;
+        },
+        (error) => {
+          if (!error.config?.skipLoading) hideApiLoading();
+          return Promise.reject(error);
+        }
+      );
+    }
+
+    addApiLoadingInterceptors(axios);
+    addApiLoadingInterceptors(api);
+
+    api.interceptors.request.use((config) => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    });
+
+    api.interceptors.response.use(
+      (res) => res,
+      (err) => {
+        if (err.response && err.response.status === 401) {
+          logout();
+        }
+        return Promise.reject(err);
+      }
+    );
+
+    // ==========================================
+    // CONTROL DEL TEMA (SOL / LUNA LIMPIO)
+    // ==========================================
+    function applyTheme() {
+      const root = document.documentElement;
+      const body = document.body;
+      if (state.theme === 'oled') {
+        root.classList.add('dark');
+        body.classList.remove('pastel-canvas');
+        body.classList.add('oled-canvas');
+      } else {
+        root.classList.remove('dark');
+        body.classList.remove('oled-canvas');
+        body.classList.add('pastel-canvas');
+      }
+      localStorage.setItem('smartgarden_theme', state.theme);
+    }
+
+    function toggleTheme() {
+      state.theme = state.theme === 'pastel' ? 'oled' : 'pastel';
+      applyTheme();
+      render();
+      setTimeout(() => {
+        initThreeJs();
+        renderChart();
+      }, 100);
+    }
+
+    function toggleTelemetryPanel() {
+      state.telemetryExpanded = !state.telemetryExpanded;
+      localStorage.setItem('smartgarden_telemetry_expanded', state.telemetryExpanded);
+
+      const panel = document.getElementById('telemetry-details');
+      const toggle = document.getElementById('telemetry-toggle');
+      const status = document.getElementById('telemetry-status');
+      const action = document.getElementById('telemetry-action');
+      const icon = document.getElementById('telemetry-toggle-icon');
+
+      if (!panel || !toggle) return;
+
+      panel.classList.toggle('max-h-[900px]', state.telemetryExpanded);
+      panel.classList.toggle('opacity-100', state.telemetryExpanded);
+      panel.classList.toggle('translate-y-0', state.telemetryExpanded);
+      panel.classList.toggle('max-h-0', !state.telemetryExpanded);
+      panel.classList.toggle('opacity-0', !state.telemetryExpanded);
+      panel.classList.toggle('-translate-y-2', !state.telemetryExpanded);
+      panel.classList.toggle('border-t-transparent', !state.telemetryExpanded);
+      panel.classList.toggle('pt-0', !state.telemetryExpanded);
+      panel.classList.toggle('mt-0', !state.telemetryExpanded);
+      toggle.setAttribute('aria-expanded', state.telemetryExpanded);
+      if (status) status.textContent = state.telemetryExpanded ? 'Visible' : 'Disponible';
+      if (action) action.textContent = state.telemetryExpanded ? 'Ocultar' : 'Ver análisis';
+      if (icon) {
+        icon.setAttribute('data-lucide', state.telemetryExpanded ? 'chevron-up' : 'chevron-down');
+        lucide.createIcons();
+      }
+
+      if (state.telemetryExpanded) {
+        setTimeout(() => renderChart(), 500);
+      }
+    }
+
+    // ==========================================
+    // PETICIONES A LA API REST
+    // ==========================================
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value.trim();
+
+      try {
+        let res;
+        try {
+          // Intenta primero el endpoint del backend adaptado: /api/auth/login/
+          res = await axios.post('/api/auth/login/', { username, password });
+        } catch (loginErr) {
+          if (loginErr.response && loginErr.response.status === 404) {
+            // Fallback al endpoint estándar SimpleJWT: /api/token/
+            res = await axios.post('/api/token/', { username, password });
+          } else {
+            throw loginErr;
+          }
+        }
+        state.token = res.data.access;
+        state.refreshToken = res.data.refresh;
+        state.operator = username;
+
+        localStorage.setItem('access_token', res.data.access);
+        localStorage.setItem('refresh_token', res.data.refresh);
+        localStorage.setItem('operator_user', username);
+        
+        // Persistir el usuario si la casilla "Recordar usuario" está marcada
+        const rememberUser = document.getElementById('remember-me')?.checked;
+        if (rememberUser) {
+          localStorage.setItem('smartgarden_last_user', username);
+          localStorage.setItem('remembered_operator', username);
+        } else {
+          localStorage.removeItem('smartgarden_last_user');
+          localStorage.removeItem('remembered_operator');
+        }
+        // La contraseña NUNCA se recuerda automáticamente, siempre se solicita
+        localStorage.removeItem('remembered_password');
+
+        render();
+        initDashboardData();
+      } catch (err) {
+        console.error('Error login', err);
+        const errDetail = err.response?.data?.detail || err.response?.data?.error || '';
+        if (errDetail.toLowerCase().includes('activada') || errDetail.toLowerCase().includes('activo') || errDetail.toLowerCase().includes('active')) {
+          alert('⚠️ Tu cuenta aún no ha sido activada.\n\nHemos enviado un correo de confirmación con un enlace de activación. Por favor haz clic en él para confirmar tu cuenta antes de acceder.');
+        } else {
+          alert('Credenciales incorrectas. Verifica usuario y contraseña.');
+        }
+      }
+    }
+
+    function switchAuthMode(mode) {
+      state.authMode = mode;
+      state.activationNotice = null;
+      render();
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const username = document.getElementById('reg-username').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value.trim();
+      const passwordConfirm = document.getElementById('reg-password-confirm').value.trim();
+
+      if (!username || !email || !password || !passwordConfirm) {
+        alert('Por favor completa todos los campos requeridos.');
+        return;
+      }
+
+      if (password !== passwordConfirm) {
+        alert('Las contraseñas no coinciden. Por favor verifica la confirmación.');
+        return;
+      }
+
+      if (password.length < 6) {
+        alert('La contraseña debe tener al menos 6 caracteres.');
+        return;
+      }
+
+      try {
+        let res;
+        try {
+          res = await axios.post('/api/auth/register/', {
+            username,
+            email,
+            password,
+            password_confirm: passwordConfirm
+          });
+        } catch (subErr) {
+          if (subErr.response && subErr.response.status === 404) {
+            res = await axios.post('/api/register/', {
+              username,
+              email,
+              password,
+              password_confirm: passwordConfirm
+            });
+          } else {
+            throw subErr;
+          }
+        }
+
+        if (res.data.requires_activation) {
+          localStorage.setItem('smartgarden_last_user', username);
+          state.authMode = 'login';
+          state.activationNotice = {
+            type: 'pending',
+            email: email,
+            username: username
+          };
+          render();
+          alert(`📧 ¡Hemos enviado un correo de confirmación a:\n${email}\n\nPor favor haz clic en el enlace para activar tu cuenta antes de iniciar sesión.\n\n(En entorno local de desarrollo, revisa la consola de tu terminal de Visual Studio/PowerShell donde corre el runserver).`);
+          return;
+        }
+
+        // Si no requirió activación (fallback):
+        state.token = res.data.access;
+        state.refreshToken = res.data.refresh;
+        state.operator = res.data.username || username;
+
+        localStorage.setItem('access_token', res.data.access);
+        localStorage.setItem('refresh_token', res.data.refresh);
+        localStorage.setItem('operator_user', state.operator);
+
+        state.userPlants = [];
+        state.selectedFleetPlantId = null;
+        localStorage.removeItem('smartgarden_selected_plant');
+
+        alert(`¡Bienvenido a SmartGarden, ${state.operator}!\nTu cuenta ha sido creada exitosamente. Tu flota inicia con 0 plantas.`);
+        render();
+        initDashboardData();
+      } catch (err) {
+        console.error('Error registro', err);
+        const msg = err.response?.data?.error || err.response?.data?.detail || 'No se pudo crear la cuenta. Verifica que el usuario o correo no estén en uso.';
+        alert(msg);
+      }
+    }
+
+    function togglePasswordVisibility(inputId = 'login-password', iconId = 'login-password-icon') {
+      const input = document.getElementById(inputId);
+      const icon = document.getElementById(iconId);
+      if (!input || !icon) return;
+      const visible = input.type === 'text';
+      input.type = visible ? 'password' : 'text';
+      icon.setAttribute('data-lucide', visible ? 'eye' : 'eye-off');
+      lucide.createIcons();
+    }
+
+    function logout() {
+      if (state.operator && state.operator.toLowerCase() !== 'operador') {
+        localStorage.setItem('smartgarden_last_user', state.operator);
+      }
+      state.token = null;
+      state.refreshToken = null;
+      state.selectedFleetPlantId = null;
+      if (state.pollInterval) clearInterval(state.pollInterval);
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('smartgarden_selected_plant');
+      localStorage.removeItem('remembered_password');
+      render();
+    }
+
+    async function fetchTelemetry(showLoading = false) {
+      if (!state.token) return;
+      try {
+        const res = await api.get('/api/telemetry/', { skipLoading: !showLoading });
+        let data = res.data;
+
+        // Soporte inteligente para la telemetría paginada del backend { count, results: [...] }
+        if (data && data.results && Array.isArray(data.results)) {
+          const latest = data.results[0] || {};
+          const prevActuators = state.telemetry?.actuadores || {
+            bombaAgua: false,
+            nebulizador: false,
+            dosisRiegoMl: 100,
+            paradaEmergencia: false
+          };
+
+          const tempVal = typeof latest.temperatura === 'number' ? latest.temperatura : 26.4;
+          const humVal = typeof latest.humedad === 'number' ? latest.humedad : (typeof latest.humedadSuelo === 'number' ? latest.humedadSuelo : 52.0);
+          const rawLuzVal = typeof latest.luz === 'number' ? latest.luz : (typeof latest.luzSolar === 'number' ? latest.luzSolar : 78.0);
+          const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
+
+          data = {
+            nodo: latest.module ? `Módulo IoT #${latest.module}` : 'nodo_central_01',
+            moduleId: latest.module || 1,
+            sensores: {
+              temperatura: tempVal,
+              humedadSuelo: humVal,
+              luzSolar: luzVal
+            },
+            actuadores: prevActuators,
+            timestamp: latest.timestamp || new Date().toISOString()
+          };
+        } else if (data && typeof data.temperatura === 'number' && !data.sensores) {
+          // Objeto plano
+          const tempVal = data.temperatura;
+          const humVal = typeof data.humedad === 'number' ? data.humedad : (data.humedadSuelo || 52.0);
+          const rawLuzVal = typeof data.luz === 'number' ? data.luz : (data.luzSolar || 78.0);
+          const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
+
+          data = {
+            nodo: data.module ? `Módulo IoT #${data.module}` : 'nodo_central_01',
+            sensores: {
+              temperatura: tempVal,
+              humedadSuelo: humVal,
+              luzSolar: luzVal
+            },
+            actuadores: state.telemetry?.actuadores || {
+              bombaAgua: false,
+              nebulizador: false,
+              dosisRiegoMl: 100,
+              paradaEmergencia: false
+            },
+            timestamp: data.timestamp || new Date().toISOString()
+          };
+        }
+
+        state.telemetry = data;
+        state.lastUpdated = new Date().toLocaleTimeString();
+        updateSoilColor(data?.sensores?.humedadSuelo || 50);
+        updateTelemetryCardsDOM();
+      } catch (err) {
+        console.warn('Error telemetría', err);
+      }
+    }
+
+    async function fetchHistory(range = state.historyRange) {
+      if (!state.token) return;
+      state.historyRange = range;
+      try {
+        const res = await api.get(`/api/telemetry/history/?range=${range}`);
+        state.historyData = res.data;
+        renderChart();
+      } catch (err) {
+        console.warn('Error cargando historial desde /api/telemetry/', err);
+      }
+    }
+
+    async function fetchUserPlants() {
+      if (!state.token) return;
+      try {
+        const res = await api.get('/api/user-plants/');
+        const rawPlants = res.data.results || (Array.isArray(res.data) ? res.data : []);
+        state.userPlants = rawPlants.map((plant) => ({
+          ...getSavedCatalogDetails(plant.api_species_id),
+          ...plant,
+          nombre: plant.nombre || plant.apodo || 'Maceta SmartGarden',
+          especie: plant.especie || `Especie #${plant.api_species_id || 'sin identificar'}`,
+          humedad_min: plant.humedad_min ?? plant.humedad_optima ?? 30.0,
+          imagen_url: plant.imagen_url || getSavedCatalogDetails(plant.api_species_id).imagen_url || '/SmartGarden.png',
+          dosis_riego_ml: plant.dosis_riego_ml || 100,
+        }));
+
+        // Auto-selección inteligente: mantener selección o tomar la primera
+        if (state.userPlants.length > 0) {
+          const stillExists = state.userPlants.some(p => p.id === state.selectedFleetPlantId);
+          if (!stillExists) {
+            state.selectedFleetPlantId = state.userPlants[0].id;
+            localStorage.setItem('smartgarden_selected_plant', state.selectedFleetPlantId);
+          }
+          restoreSimulationForSelectedPlant();
+        } else {
+          state.selectedFleetPlantId = null;
+          localStorage.removeItem('smartgarden_selected_plant');
+          state.simulation.active = false;
+        }
+
+        updateSimulatorDOM();
+        updateTelemetryCardsDOM();
+        renderFleetGridDOM();
+        updateTwinDOM();
+      } catch (err) {
+        console.warn('Error flota plantas', err);
+      }
+    }
+
+    function getSavedCatalogDetails(speciesId) {
+      const localImages = {
+        'smartgarden-limonero': '/plants/limonero.jpg',
+        'smartgarden-naranjo': '/plants/naranjo.jpg',
+        'smartgarden-mandarino': '/plants/mandarino.jpg',
+        'smartgarden-palto': '/plants/palto.jpg',
+        'smartgarden-higuera': '/plants/higuera.jpg',
+        'smartgarden-olivo': '/plants/olivo.jpg'
+      };
+      const catalogPlant = state.searchResults.find(
+        (plant) => String(plant.id) === String(speciesId)
+      );
+      return {
+        nombre: catalogPlant?.nombre_comun,
+        especie: catalogPlant?.especie,
+        imagen_url: catalogPlant?.imagen_url || localImages[String(speciesId)] || '/SmartGarden.png',
+        temp_min: catalogPlant?.temp_min,
+        temp_max: catalogPlant?.temp_max,
+        humedad_min: catalogPlant?.humedad_min,
+        dosis_riego_ml: catalogPlant?.dosis_riego_ml
+      };
+    }
+
+    function getEffectiveTelemetry() {
+      if (state.simulation.active) {
+        return {
+          sensores: {
+            temperatura: state.simulation.temperatura,
+            humedadSuelo: state.simulation.humedadSuelo,
+            luzSolar: state.simulation.luzSolar
+          },
+          actuadores: state.telemetry?.actuadores || { bombaAgua: false, nebulizador: false, dosisRiegoMl: 100, paradaEmergencia: false }
+        };
+      }
+      return state.telemetry || {
+        sensores: { temperatura: 26.4, humedadSuelo: 52, luzSolar: 78 },
+        actuadores: { bombaAgua: false, nebulizador: false, dosisRiegoMl: 100, paradaEmergencia: false }
+      };
+    }
+
+    function getPlantTelemetry(plant) {
+      const isSelected = plant?.id === state.selectedFleetPlantId;
+      if (isSelected && state.simulation.active) {
+        return getEffectiveTelemetry();
+      }
+
+      const savedSimulation = getSimulationStorage()[String(plant?.id)];
+      if (savedSimulation?.active) {
+        return {
+          sensores: {
+            temperatura: Number(savedSimulation.temperatura),
+            humedadSuelo: Number(savedSimulation.humedadSuelo),
+            luzSolar: Number(savedSimulation.luzSolar)
+          },
+          actuadores: state.telemetry?.actuadores || {
+            bombaAgua: false,
+            nebulizador: false,
+            dosisRiegoMl: 100,
+            paradaEmergencia: false
+          }
+        };
+      }
+
+      return state.telemetry || {
+        sensores: { temperatura: 26.4, humedadSuelo: 52, luzSolar: 78 },
+        actuadores: { bombaAgua: false, nebulizador: false, dosisRiegoMl: 100, paradaEmergencia: false }
+      };
+    }
+
+    // ==========================================
+    // SEMÁFORO DE SALUD BOTÁNICA (VERDE / NARANJA / ROJO)
+    // ==========================================
+    function calculatePlantHealth(plant, telemetry) {
+      const eff = telemetry || getEffectiveTelemetry();
+      const t = eff?.sensores?.temperatura ?? 26.4;
+      const h = eff?.sensores?.humedadSuelo ?? 52;
+
+      // Umbrales específicos de la planta seleccionada o defaults botánicos seguros
+      const minH = plant?.humedad_min ?? plant?.humedad_optima ?? 30.0;
+      const maxT = plant?.temp_max ?? 35.0;
+      const minT = plant?.temp_min ?? 15.0;
+
+      // 1. ROJO (Crítico / Estrés Severo)
+      const isDrought = h < minH;
+      const isOverheat = t > maxT;
+      const isFreezing = t < minT;
+
+      if (isDrought || isOverheat || isFreezing) {
+        let issues = [];
+        if (isDrought) issues.push(`Suelo seco (${Math.round(h)}% < mín ${minH}%)`);
+        if (isOverheat) issues.push(`Calor extremo (${t.toFixed(1)}°C > máx ${maxT}°C)`);
+        if (isFreezing) issues.push(`Frío severo (${t.toFixed(1)}°C < mín ${minT}°C)`);
+        return {
+          status: 'critico',
+          color: '#E53E3E',
+          hexThree: 0xE74C3C,
+          leafHex: 0x995B3D, // Hojas marchitas en Three.js
+          label: 'Crítico • Estrés',
+          badgeClass: 'bg-red-500 text-white shadow-sm animate-pulse',
+          dotClass: 'bg-red-500',
+          ringClass: 'ring-2 ring-red-500/70',
+          description: issues.join(' • '),
+          actionText: 'Riego o climatización urgente requerida',
+          score: '30% Salud'
+        };
+      }
+
+      // 2. NARANJA (Atención / Riego Sugerido)
+      const isHumWarning = h < (minH + 8);
+      const isTempWarning = t > (maxT - 2.5) || t < (minT + 2.5);
+
+      if (isHumWarning || isTempWarning) {
+        let warnings = [];
+        if (isHumWarning) warnings.push(`Sustrato secándose (${Math.round(h)}% cerca de mín ${minH}%)`);
+        if (isTempWarning) warnings.push(`Temperatura al límite (${t.toFixed(1)}°C cerca de ${maxT}°C)`);
+        return {
+          status: 'atencion',
+          color: '#DD6B20',
+          hexThree: 0xF39C12,
+          leafHex: 0x88B342, // Hojas ligeramente descoloridas
+          label: 'Atención • Riego Sugerido',
+          badgeClass: 'bg-amber-500 text-white shadow-sm',
+          dotClass: 'bg-amber-500',
+          ringClass: 'ring-2 ring-amber-500/60',
+          description: warnings.join(' • '),
+          actionText: 'Se recomienda hidratar sustrato pronto',
+          score: '68% Salud'
+        };
+      }
+
+      // 3. VERDE (Óptimo / Saludable)
+      return {
+        status: 'optimo',
+        color: '#2ECC71',
+        hexThree: 0x2ECC71,
+        leafHex: 0x35B866, // Hojas verdes vibrantes
+        label: 'Óptimo • Saludable',
+        badgeClass: 'bg-[#2ECC71] text-white shadow-sm',
+        dotClass: 'bg-[#2ECC71]',
+        ringClass: 'ring-2 ring-[#2ECC71]/70',
+        description: `Humedad (${Math.round(h)}%) y temperatura (${t.toFixed(1)}°C) en rango ideal`,
+        actionText: 'Condiciones botánicas excelentes',
+        score: '98% Salud'
+      };
+    }
+
+    function getSelectedPlant() {
+      if (!state.userPlants || state.userPlants.length === 0) return null;
+      const found = state.userPlants.find(p => p.id === state.selectedFleetPlantId);
+      if (found) return found;
+      state.selectedFleetPlantId = state.userPlants[0].id;
+      localStorage.setItem('smartgarden_selected_plant', state.selectedFleetPlantId);
+      return state.userPlants[0];
+    }
+
+    function selectFleetPlant(plantId) {
+      state.selectedFleetPlantId = plantId;
+      localStorage.setItem('smartgarden_selected_plant', plantId);
+      restoreSimulationForSelectedPlant();
+      updateSimulatorDOM();
+      renderFleetGridDOM();
+      updateTwinDOM();
+    }
+
+    async function deleteFleetPlant(e, plantId, plantName) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      if (!confirm(`¿Estás seguro de eliminar la maceta "${plantName}" de tu flota?\nEsta acción retirará la tarjeta del jardín.`)) {
+        return;
+      }
+      try {
+        await api.delete(`/api/user-plants/${plantId}/`);
+        if (state.selectedFleetPlantId === plantId) {
+          state.selectedFleetPlantId = null;
+          localStorage.removeItem('smartgarden_selected_plant');
+        }
+        await fetchUserPlants();
+      } catch (err) {
+        console.error('Error al eliminar maceta', err);
+        alert('No se pudo eliminar la maceta. Intenta nuevamente.');
+      }
+    }
+
+    function triggerTwinWater() {
+      const plant = getSelectedPlant();
+      const dose = plant?.dosis_riego_ml || 100;
+      const name = plant?.nombre || 'Planta en Monitoreo';
+      triggerQuickWater(name, dose);
+    }
+
+    // ==========================================
+    // SIMULADOR MANUAL IOT (TIPO ANDROID)
+    // ==========================================
+    function setSimulationParam(param, val) {
+      state.simulation.active = true;
+      state.simulation[param] = parseFloat(val);
+      persistSimulationForSelectedPlant();
+      updateSimulatorDOM();
+      updateTelemetryCardsDOM();
+      updateTwinDOM();
+      renderFleetGridDOM();
+    }
+
+    function triggerSimulationPreset(preset) {
+      state.simulation.active = true;
+      const plant = getSelectedPlant();
+      const minH = plant?.humedad_min || 30.0;
+      const maxT = plant?.temp_max || 35.0;
+      const minT = plant?.temp_min || 15.0;
+
+      if (preset === 'sequia') {
+        state.simulation.humedadSuelo = Math.max(5, minH - 15);
+        state.simulation.temperatura = 28.5;
+      } else if (preset === 'sobrecalentamiento') {
+        state.simulation.temperatura = maxT + 4.5;
+        state.simulation.humedadSuelo = Math.max(12, minH - 6);
+      } else if (preset === 'exceso') {
+        state.simulation.humedadSuelo = 92.0;
+        state.simulation.temperatura = 22.0;
+      } else if (preset === 'optimo') {
+        state.simulation.temperatura = (minT + maxT) / 2;
+        state.simulation.humedadSuelo = minH + 18;
+      }
+
+      persistSimulationForSelectedPlant();
+      updateSimulatorDOM();
+      updateTelemetryCardsDOM();
+      updateTwinDOM();
+      renderFleetGridDOM();
+    }
+
+    function resetSimulationToReal() {
+      state.simulation.active = false;
+      removeSimulationForSelectedPlant();
+      updateSimulatorDOM();
+      fetchTelemetry(true);
+    }
+
+    function getSimulationStorage() {
+      try {
+        return JSON.parse(localStorage.getItem('smartgarden_plant_simulations') || '{}');
+      } catch (err) {
+        console.warn('No se pudieron leer las simulaciones guardadas', err);
+        return {};
+      }
+    }
+
+    function persistSimulationForSelectedPlant() {
+      const plantId = state.selectedFleetPlantId;
+      if (!plantId) return;
+
+      const simulations = getSimulationStorage();
+      simulations[String(plantId)] = {
+        active: Boolean(state.simulation.active),
+        temperatura: state.simulation.temperatura,
+        humedadSuelo: state.simulation.humedadSuelo,
+        luzSolar: state.simulation.luzSolar
+      };
+      localStorage.setItem('smartgarden_plant_simulations', JSON.stringify(simulations));
+    }
+
+    function removeSimulationForSelectedPlant() {
+      const plantId = state.selectedFleetPlantId;
+      if (!plantId) return;
+
+      const simulations = getSimulationStorage();
+      delete simulations[String(plantId)];
+      localStorage.setItem('smartgarden_plant_simulations', JSON.stringify(simulations));
+    }
+
+    function restoreSimulationForSelectedPlant() {
+      const saved = getSimulationStorage()[String(state.selectedFleetPlantId)];
+      if (!saved) {
+        state.simulation.active = false;
+        state.simulation.temperatura = 26.4;
+        state.simulation.humedadSuelo = 52;
+        state.simulation.luzSolar = 78;
+        return;
+      }
+
+      state.simulation.active = Boolean(saved.active);
+      state.simulation.temperatura = Number.isFinite(Number(saved.temperatura)) ? Number(saved.temperatura) : 26.4;
+      state.simulation.humedadSuelo = Number.isFinite(Number(saved.humedadSuelo)) ? Number(saved.humedadSuelo) : 52;
+      state.simulation.luzSolar = Number.isFinite(Number(saved.luzSolar)) ? Number(saved.luzSolar) : 78;
+    }
+
+    function updateSimulatorDOM() {
+      const badge = document.getElementById('sim-status-badge');
+      const tempVal = document.getElementById('sim-temp-val');
+      const humVal = document.getElementById('sim-hum-val');
+      const tempSlider = document.getElementById('sim-temp-slider');
+      const humSlider = document.getElementById('sim-hum-slider');
+
+      if (badge) {
+        badge.className = `text-[9px] font-bold px-2 py-0.5 rounded-full ${
+          state.simulation.active ? 'bg-amber-500 text-white animate-pulse' : 'bg-black/10 dark:bg-white/10 text-[#718096]'
+        }`;
+        badge.innerText = state.simulation.active ? 'Simulación Activa' : 'Sensores Reales';
+      }
+      if (tempVal) tempVal.innerText = `${state.simulation.temperatura.toFixed(1)}°C`;
+      if (humVal) humVal.innerText = `${Math.round(state.simulation.humedadSuelo)}%`;
+      if (tempSlider) tempSlider.value = state.simulation.temperatura;
+      if (humSlider) humSlider.value = state.simulation.humedadSuelo;
+    }
+
+    function applyCustomDose() {
+      const input = document.getElementById('input-custom-dose');
+      if (!input) return;
+      const val = parseInt(input.value, 10);
+      if (isNaN(val) || val <= 0) {
+        alert('Ingresa una cantidad válida de mililitros para la bomba (ej. 180 ml).');
+        return;
+      }
+      sendActuatorCommand({ dosisRiegoMl: val });
+    }
+
+    async function searchPlants(query) {
+      state.searchQuery = query;
+      const normalizedQuery = query.trim();
+
+      if (!normalizedQuery) {
+        state.isSearching = false;
+        state.searchResults = [];
+        renderSearchResultsDOM();
+        return;
+      }
+
+      state.isSearching = true;
+      renderSearchResultsDOM();
+
+      try {
+        const res = await api.get(`/api/plants/search/?q=${encodeURIComponent(normalizedQuery)}`);
+        setTimeout(() => {
+          const rawItems = res.data.results || (Array.isArray(res.data) ? res.data : []);
+          state.searchResults = rawItems.map((p, idx) => ({
+            id: p.id || p.api_species_id || (idx + 1),
+            nombre_comun: p.nombre_comun || p.common_name || (p.apodo || 'Especie Botánica'),
+            especie: p.especie || p.scientific_name || 'Planta',
+            familia: p.familia || p.family || (Array.isArray(p.sunlight) ? `Sol: ${p.sunlight.join(', ')}` : 'FloraSense'),
+            imagen_url: p.imagen_url || p.thumbnail || 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?w=600&auto=format&fit=crop&q=80',
+            temp_max: p.temp_max || 32.0,
+            temp_min: p.temp_min || 16.0,
+            humedad_min: p.humedad_min || p.humidity_min || (p.watering === 'Frequent' ? 45.0 : p.watering === 'Average' ? 30.0 : 20.0),
+            dosis_riego_ml: p.dosis_riego_ml || p.watering_ml || 100,
+            luz_optima: Array.isArray(p.sunlight) ? p.sunlight.join(', ') : (p.sunlight || 'Luz indirecta'),
+            descripcion: p.descripcion || p.description || (p.watering ? `Riego: ${p.watering}. Exposición: ${Array.isArray(p.sunlight) ? p.sunlight.join(', ') : 'buena luz'}.` : 'Especie botánica indexada.')
+          }));
+          state.isSearching = false;
+          renderSearchResultsDOM();
+        }, 300);
+      } catch (err) {
+        state.isSearching = false;
+        renderSearchResultsDOM();
+      }
+    }
+
+    async function sendActuatorCommand(payload) {
+      if (state.telemetry && state.telemetry.actuadores) {
+        Object.assign(state.telemetry.actuadores, payload);
+        if (payload.paradaEmergencia) {
+          state.telemetry.actuadores.bombaAgua = false;
+          state.telemetry.actuadores.nebulizador = false;
+        }
+        updateActuatorsDOM();
+      }
+      try {
+        const res = await api.post('/api/actuators/', payload);
+        if (res.data && state.telemetry) {
+          Object.assign(state.telemetry.actuadores, res.data);
+          updateActuatorsDOM();
+        }
+      } catch (err) {
+        console.warn('Actuadores operando en modo simulación frontend (API no disponible)', err);
+      }
+    }
+
+    async function savePlantConfig(e) {
+      e.preventDefault();
+      const p = state.selectedPlantForConfig;
+      if (!p) return;
+
+      try {
+        const modulesResponse = await api.get('/api/modules/');
+        const ownModules = modulesResponse.data.results || (
+          Array.isArray(modulesResponse.data) ? modulesResponse.data : []
+        );
+        const availableModule = ownModules.find((module) => !module.plant);
+        let moduleId = availableModule?.id || null;
+
+        if (!moduleId) {
+          const mac = crypto.randomUUID().replace(/-/g, '').slice(0, 12).match(/.{2}/g).join(':').toUpperCase();
+          const moduleRes = await api.post('/api/modules/', {
+            mac_address: mac,
+            nombre: `Maceta ${document.getElementById('cfg-nombre').value.trim() || p.nombre_comun}`
+          });
+          moduleId = moduleRes.data.id;
+        }
+
+        const payload = {
+          module: moduleId,
+          api_species_id: String(p.id || p.api_species_id || 1),
+          apodo: document.getElementById('cfg-nombre').value.trim() || p.nombre_comun,
+          temp_max: parseFloat(document.getElementById('cfg-temp-max').value),
+          temp_min: parseFloat(document.getElementById('cfg-temp-min').value),
+          humedad_optima: parseFloat(document.getElementById('cfg-hum-min').value),
+        };
+        await api.post('/api/user-plants/', payload);
+        closePlantModal();
+        await fetchUserPlants();
+        alert(`¡Maceta "${payload.apodo}" agregada con éxito a tu flota!`);
+      } catch (err) {
+        console.error('Error al guardar la maceta', err);
+        const detail = err.response?.data?.detail || err.response?.data?.mac_address?.[0] || err.response?.data?.module?.[0];
+        alert(detail || 'Error al guardar la maceta. Intenta nuevamente.');
+      }
+    }
+
+    function initDashboardData() {
+      fetchTelemetry(true);
+      fetchHistory('24h');
+      fetchUserPlants();
+      state.searchResults = [];
+      state.searchQuery = '';
+      state.isSearching = false;
+      renderSearchResultsDOM();
+      if (state.pollInterval) clearInterval(state.pollInterval);
+      state.pollInterval = setInterval(() => fetchTelemetry(false), 6000);
+      setTimeout(() => initThreeJs(), 150);
+    }
+
+    // ==========================================
+    // GEMELO DIGITAL 3D (THREE.JS) - ENCUADRE COMPLETO
+    // ==========================================
+    let threeScene, threeCamera, threeRenderer, soilMesh, plantGroup, rimLight, leafMaterial;
+    let soilColorTarget;
+
+    function initThreeJs() {
+      const container = document.getElementById('three-digital-twin');
+      if (!container) return;
+
+      container.innerHTML = '';
+      const width = container.clientWidth || 360;
+      const height = container.clientHeight || 340;
+
+      threeScene = new THREE.Scene();
+      
+      // Cámara perfectamente calibrada para encuadrar maceta y planta completa
+      threeCamera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+      threeCamera.position.set(0, 1.25, 5.2);
+      threeCamera.lookAt(0, 0.25, 0);
+
+      threeRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      threeRenderer.setSize(width, height);
+      threeRenderer.setPixelRatio(window.devicePixelRatio);
+      threeRenderer.shadowMap.enabled = true;
+      container.appendChild(threeRenderer.domElement);
+
+      // Iluminación
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      threeScene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.6);
+      dirLight.position.set(4, 7, 5);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.set(1024, 1024);
+      threeScene.add(dirLight);
+
+      rimLight = new THREE.DirectionalLight(0x2ecc71, 0.55);
+      rimLight.position.set(-4, -2, -3);
+      threeScene.add(rimLight);
+
+      // GRUPO PRINCIPAL DEL MODELO
+      plantGroup = new THREE.Group();
+      plantGroup.position.y = -0.15; // Centrado vertical perfecto
+
+      // 1. Maceta exterior con plato, cuerpo cónico y acabado cerámico
+      const potGeo = new THREE.CylinderGeometry(1.08, 0.78, 1.18, 48);
+      const potMat = new THREE.MeshStandardMaterial({
+        color: state.theme === 'oled' ? 0x242424 : 0xD97745,
+        roughness: 0.42,
+        metalness: 0.08
+      });
+      const pot = new THREE.Mesh(potGeo, potMat);
+      pot.position.y = -0.34;
+      pot.castShadow = true;
+      pot.receiveShadow = true;
+      plantGroup.add(pot);
+
+      // Plato inferior para dar volumen y estabilidad al conjunto
+      const saucerGeo = new THREE.CylinderGeometry(1.12, 0.96, 0.12, 48);
+      const saucer = new THREE.Mesh(saucerGeo, potMat);
+      saucer.position.y = -0.96;
+      saucer.castShadow = true;
+      saucer.receiveShadow = true;
+      plantGroup.add(saucer);
+
+      // Reborde superior y detalle decorativo de la maceta
+      const rimGeo = new THREE.TorusGeometry(1.08, 0.09, 18, 48);
+      const rimMat = potMat;
+      const rim = new THREE.Mesh(rimGeo, rimMat);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.y = 0.25;
+      rim.castShadow = true;
+      plantGroup.add(rim);
+
+      // 2. Sustrato Reactivo (Tierra 3D que cambia de color)
+      const soilGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.13, 48);
+      const initialHumidity = state.telemetry?.sensores?.humedadSuelo || 52;
+      const initialSoilColor = getSoilColor(initialHumidity);
+      
+      const soilMat = new THREE.MeshStandardMaterial({
+        color: initialSoilColor,
+        roughness: 0.95,
+        metalness: 0.02
+      });
+      soilMesh = new THREE.Mesh(soilGeo, soilMat);
+      soilMesh.position.y = 0.28;
+      soilMesh.receiveShadow = true;
+      plantGroup.add(soilMesh);
+
+      // 3. Brote botánico: tallos ramificados y hojas orgánicas
+      const stemMat = new THREE.MeshStandardMaterial({ color: 0x247A45, roughness: 0.55 });
+      leafMaterial = new THREE.MeshStandardMaterial({ color: 0x35B866, roughness: 0.3, metalness: 0.04 });
+
+      const stemGeo = new THREE.CylinderGeometry(0.045, 0.075, 1.05, 18);
+      const stem = new THREE.Mesh(stemGeo, stemMat);
+      stem.position.y = 0.78;
+      stem.castShadow = true;
+      plantGroup.add(stem);
+
+      const createPetiole = (start, end, radius = 0.028) => {
+        const startPoint = new THREE.Vector3(...start);
+        const endPoint = new THREE.Vector3(...end);
+        const direction = new THREE.Vector3().subVectors(endPoint, startPoint);
+        const petioleGeo = new THREE.CylinderGeometry(radius, radius * 1.35, direction.length(), 12);
+        const petiole = new THREE.Mesh(petioleGeo, stemMat);
+        petiole.position.copy(startPoint).add(endPoint).multiplyScalar(0.5);
+        petiole.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+        petiole.castShadow = true;
+        plantGroup.add(petiole);
+        return petiole;
+      };
+
+      const leafGeo = new THREE.SphereGeometry(0.42, 24, 16);
+      const createLeaf = (position, rotation, scale, material) => {
+        const leaf = new THREE.Mesh(leafGeo, material);
+        leaf.position.set(...position);
+        leaf.rotation.set(...rotation);
+        leaf.scale.set(...scale);
+        leaf.castShadow = true;
+        plantGroup.add(leaf);
+        return leaf;
+      };
+
+      createPetiole([0, 0.98, 0.02], [-0.34, 1.02, 0.03]);
+      createPetiole([0, 1.02, 0.02], [0.35, 1.12, 0.02]);
+
+      const leafLeft = createLeaf([-0.47, 1.02, 0.03], [0.18, 0.25, 0.52], [1.32, 0.12, 0.62], leafMaterial);
+      const leafRight = createLeaf([0.48, 1.16, 0.02], [-0.12, -0.25, -0.52], [1.3, 0.12, 0.62], leafMaterial);
+
+      threeScene.add(plantGroup);
+
+      // Sincronizar estado inicial del gemelo digital con la planta seleccionada
+      updateTwinDOM();
+
+      // Interacción con mouse: arrastrar para rotar 360°
+      let isDragging = false;
+      let prevMousePos = { x: 0, y: 0 };
+
+      container.onmousedown = (e) => {
+        isDragging = true;
+        prevMousePos = { x: e.clientX, y: e.clientY };
+      };
+      window.onmouseup = () => { isDragging = false; };
+      window.onmousemove = (e) => {
+        if (!isDragging || !plantGroup) return;
+        const deltaX = e.clientX - prevMousePos.x;
+        plantGroup.rotation.y += deltaX * 0.012;
+        prevMousePos = { x: e.clientX, y: e.clientY };
+      };
+
+      // Animación suave continua
+      let clock = new THREE.Clock();
+      function animate() {
+        requestAnimationFrame(animate);
+        const elapsedTime = clock.getElapsedTime();
+        if (!isDragging) {
+          plantGroup.rotation.y += 0.005; // Rotación automática suave
+        }
+        if (soilMesh && soilColorTarget) {
+          soilMesh.material.color.lerp(soilColorTarget, 0.08);
+        }
+        threeRenderer.render(threeScene, threeCamera);
+      }
+      animate();
+
+      // Ajuste responsivo al redimensionar ventana
+      window.addEventListener('resize', () => {
+        if (!container || !threeRenderer || !threeCamera) return;
+        const newW = container.clientWidth || 360;
+        const newH = container.clientHeight || 340;
+        threeCamera.aspect = newW / newH;
+        threeCamera.updateProjectionMatrix();
+        threeRenderer.setSize(newW, newH);
+      });
+    }
+
+    function getSoilColor(humidity) {
+      const dry = new THREE.Color(0x9E8F7F);
+      const balanced = new THREE.Color(0x5C3822);
+      const wet = new THREE.Color(0x26140A);
+      const color = new THREE.Color();
+      if (humidity <= 35) {
+        color.copy(dry).lerp(balanced, Math.max(0, humidity) / 35);
+      } else {
+        color.copy(balanced).lerp(wet, Math.min(1, (humidity - 35) / 65));
+      }
+      return color.getHex();
+    }
+
+    function updateSoilColor(humidity) {
+      if (soilMesh && soilMesh.material) {
+        soilColorTarget = new THREE.Color(getSoilColor(humidity));
+      }
+    }
+
+    // ==========================================
+    // ACTUALIZACIÓN DINÁMICA DEL GEMELO DIGITAL 3D & SEMÁFORO
+    // ==========================================
+    function updateTwinDOM() {
+      const plant = getSelectedPlant();
+      const eff = getEffectiveTelemetry();
+      const health = calculatePlantHealth(plant, eff);
+
+      // 1. Datos de la maceta seleccionada en la tarjeta del Gemelo Digital
+      const nameEl = document.getElementById('twin-plant-name');
+      const speciesEl = document.getElementById('twin-plant-species');
+      const avatarEl = document.getElementById('twin-plant-avatar');
+      const btnText = document.getElementById('twin-btn-text');
+
+      if (plant) {
+        if (nameEl) nameEl.innerText = plant.nombre;
+        if (speciesEl) speciesEl.innerText = `${plant.especie} • Mín ${plant.humedad_min}% H`;
+        if (avatarEl && plant.imagen_url) avatarEl.src = plant.imagen_url;
+        if (btnText) btnText.innerText = `Regar (${plant.dosis_riego_ml || 100}ml)`;
+      } else {
+        if (nameEl) nameEl.innerText = 'Supervisión General';
+        if (speciesEl) speciesEl.innerText = 'Sin maceta seleccionada • Umbrales estándar';
+        if (btnText) btnText.innerText = 'Regar (100ml)';
+      }
+
+      // 2. Semáforo Badge y Diagnóstico Botánico
+      const badgeEl = document.getElementById('twin-health-badge');
+      const labelEl = document.getElementById('twin-health-label');
+      const scoreEl = document.getElementById('twin-health-score');
+      const descEl = document.getElementById('twin-health-desc');
+
+      if (badgeEl && labelEl) {
+        badgeEl.className = `px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1 ${health.badgeClass}`;
+        labelEl.innerText = health.status === 'optimo' ? 'Óptimo' : health.status === 'atencion' ? 'Atención' : 'Crítico';
+      }
+      if (scoreEl) {
+        scoreEl.innerText = health.score;
+        scoreEl.style.color = health.color;
+      }
+      if (descEl) {
+        descEl.innerText = `${health.description}. ${health.actionText}.`;
+      }
+
+      // 3. Semáforo 3 Pasos (Verde / Naranja / Rojo)
+      const gEl = document.getElementById('traffic-green');
+      const oEl = document.getElementById('traffic-orange');
+      const rEl = document.getElementById('traffic-red');
+
+      if (gEl && oEl && rEl) {
+        gEl.className = 'py-1 rounded-lg transition-all opacity-30 text-[#718096]';
+        oEl.className = 'py-1 rounded-lg transition-all opacity-30 text-[#718096]';
+        rEl.className = 'py-1 rounded-lg transition-all opacity-30 text-[#718096]';
+
+        if (health.status === 'optimo') {
+          gEl.className = 'py-1 rounded-lg transition-all opacity-100 bg-[#2ECC71] text-white shadow-xs font-extrabold';
+        } else if (health.status === 'atencion') {
+          oEl.className = 'py-1 rounded-lg transition-all opacity-100 bg-amber-500 text-white shadow-xs font-extrabold';
+        } else {
+          rEl.className = 'py-1 rounded-lg transition-all opacity-100 bg-red-500 text-white shadow-xs font-extrabold animate-pulse';
+        }
+      }
+
+      // 4. Dot de estado en el footer
+      const dotEl = document.getElementById('twin-status-dot');
+      if (dotEl) {
+        dotEl.className = `w-2.5 h-2.5 rounded-full ${health.dotClass} animate-ping`;
+      }
+
+      // 5. Three.js: Iluminación reactiva y tonalidad de hojas en el espacio 3D
+      if (rimLight) {
+        rimLight.color.setHex(health.hexThree);
+      }
+      if (leafMaterial) {
+        leafMaterial.color.setHex(health.leafHex);
+      }
+      const currentH = eff?.sensores?.humedadSuelo || 52;
+      updateSoilColor(currentH);
+      const twinHumEl = document.getElementById('dom-twin-hum');
+      if (twinHumEl) twinHumEl.innerText = `${Math.round(currentH)}%`;
+
+      lucide.createIcons();
+    }
+
+    // ==========================================
+    // GRÁFICOS AVANZADOS (CHART.JS + UMBRALES)
+    // ==========================================
+    function renderChart() {
+      const canvas = document.getElementById('historyChart');
+      if (!canvas || !state.historyData) return;
+
+      if (state.chartInstance) {
+        state.chartInstance.destroy();
+      }
+
+      const isOled = state.theme === 'oled';
+      const textColor = isOled ? '#F3F4F6' : '#2D3748';
+      const gridColor = isOled ? '#262626' : '#D8DCCB';
+
+      // Forzar color global por defecto de Chart.js según el modo actual
+      Chart.defaults.color = textColor;
+
+      const labels = state.historyData.historial.map(p => p.label);
+      const temps = state.historyData.historial.map(p => p.temperatura);
+      const hums = state.historyData.historial.map(p => p.humedadSuelo);
+      const lights = state.historyData.historial.map(p => p.luzSolar);
+
+      const ctx = canvas.getContext('2d');
+      state.chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Temperatura (°C)',
+              data: temps,
+              borderColor: '#DD6B20',
+              backgroundColor: 'rgba(221, 107, 32, 0.08)',
+              borderWidth: 2.5,
+              tension: 0.35,
+              pointRadius: 2,
+              pointHoverRadius: 6,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Humedad Suelo (%)',
+              data: hums,
+              borderColor: '#2B6CB0',
+              backgroundColor: 'rgba(43, 108, 176, 0.08)',
+              borderWidth: 2.5,
+              tension: 0.35,
+              pointRadius: 2,
+              pointHoverRadius: 6,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Radiación Solar (%)',
+              data: lights,
+              borderColor: '#D69E2E',
+              backgroundColor: 'rgba(214, 158, 46, 0.12)',
+              borderWidth: 1.8,
+              borderDash: [4, 4],
+              tension: 0.35,
+              pointRadius: 1,
+              yAxisID: 'y'
+            },
+            // Línea de Umbral Crítico Temperatura (35°C)
+            {
+              label: 'Umbral Máx Temp (35°C)',
+              data: labels.map(() => 35.0),
+              borderColor: '#E53E3E',
+              backgroundColor: 'rgba(229, 62, 62, 0.12)',
+              borderWidth: 2,
+              borderDash: [8, 6],
+              pointRadius: 0,
+              fill: false,
+              yAxisID: 'y'
+            },
+            // Línea de Umbral Sequía Suelo (30%)
+            {
+              label: 'Umbral Mín Humedad (30%)',
+              data: labels.map(() => 30.0),
+              borderColor: '#3182CE',
+              backgroundColor: 'rgba(49, 130, 206, 0.12)',
+              borderWidth: 2,
+              borderDash: [8, 6],
+              pointRadius: 0,
+              fill: false,
+              yAxisID: 'y'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                color: textColor,
+                boxWidth: 12,
+                boxHeight: 12,
+                padding: 16,
+                font: { size: 13, family: 'Plus Jakarta Sans', weight: '600' },
+                generateLabels: (chart) => {
+                  return chart.data.datasets.map((ds, i) => ({
+                    text: ds.label,
+                    fillStyle: ds.backgroundColor || ds.borderColor,
+                    strokeStyle: ds.borderColor,
+                    lineWidth: 2,
+                    hidden: !chart.isDatasetVisible(i),
+                    datasetIndex: i,
+                    lineDash: [], // Elimina guiones y asegura cuadritos sólidos y uniformes
+                    pointStyle: 'rect',
+                    fontColor: textColor, // Color nítido en modo oscuro y claro
+                    color: textColor
+                  }));
+                }
+              }
+            },
+            tooltip: {
+              backgroundColor: isOled ? '#1A1A1A' : '#FFFDF8',
+              titleColor: isOled ? '#FFF' : '#2D3748',
+              bodyColor: isOled ? '#CCC' : '#4A5568',
+              borderColor: isOled ? '#333' : '#D8E0D0',
+              borderWidth: 1,
+              padding: 10
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: gridColor },
+              ticks: { color: textColor, font: { size: 12, family: 'Plus Jakarta Sans', weight: '500' } }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              grid: { color: gridColor },
+              ticks: { color: textColor, font: { size: 12, family: 'Plus Jakarta Sans', weight: '500' } }
+            }
+          }
+        }
+      });
+    }
+
+    // ==========================================
+    // RENDERIZADO PRINCIPAL
+    // ==========================================
+    function render() {
+      const app = document.getElementById('app');
+      applyTheme();
+
+      if (!state.token) {
+        app.innerHTML = renderLogin();
+      } else {
+        app.innerHTML = renderDashboard();
+      }
+
+      lucide.createIcons();
+    }
+
+    function renderLogin() {
+      const isOled = state.theme === 'oled';
+      const cardBg = isOled ? 'bg-[#121212] border-[#262626]' : 'bg-[#FFFDF8] border-[#D8DCCB]';
+      const inputBg = isOled ? 'bg-[#1C1C1C] border-[#333333] text-white' : 'bg-white border-[#E2E8F0] text-[#2D3748]';
+      let savedUser = localStorage.getItem('smartgarden_last_user') || localStorage.getItem('remembered_operator') || localStorage.getItem('operator_user') || '';
+      if (savedUser.toLowerCase() === 'operador') {
+        savedUser = '';
+      }
+
+      return `
+        <div class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+          <div class="pointer-events-none absolute -left-24 -top-24 h-64 w-64 rounded-full blur-3xl ${
+            isOled ? 'bg-[#123D25]/30' : 'bg-[#CDEFD7]/60'
+          }"></div>
+          <div class="pointer-events-none absolute -bottom-32 -right-20 h-72 w-72 rounded-full blur-3xl ${
+            isOled ? 'bg-[#102B3D]/30' : 'bg-[#DCEBFF]/60'
+          }"></div>
+          
+          <!-- Botón Conmutador Sol ☀️ / Luna 🌙 alternado (acción de cambio) -->
+          <div class="absolute top-6 right-6">
+            <button onclick="toggleTheme()" aria-label="${isOled ? 'Cambiar a modo claro' : 'Cambiar a modo OLED'}" title="${isOled ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}" class="p-3 rounded-2xl border transition-all flex items-center justify-center cursor-pointer shadow-sm ${
+              isOled ? 'bg-[#1A1A1A] border-[#333333] text-[#FFD600] hover:bg-[#252525]' : 'bg-white border-[#E2E8F0] text-[#4A5568] hover:bg-[#F0EEE6]'
+            }">
+              <i data-lucide="${isOled ? 'sun' : 'moon'}" class="w-5 h-5"></i>
+            </button>
+          </div>
+
+          <div class="w-full max-w-md">
+            <div class="${cardBg} border rounded-3xl p-8 shadow-sm">
+              
+              <div class="flex flex-col items-center text-center mb-8">
+                <!-- LOGO OFICIAL DE LA APP MÓVIL SMARTGARDEN -->
+                <img src="/SmartGarden.png" alt="SmartGarden Logo" class="w-20 h-20 rounded-3xl shadow-md mb-3 object-contain">
+                <h1 class="text-2xl font-extrabold tracking-tight">SmartGarden</h1>
+                <p class="text-xs uppercase tracking-widest text-[#718096] mt-1 font-semibold">
+                  ${state.authMode === 'register' ? 'Registro de Nuevo Operador • SmartGarden' : 'Pasarela Web de Supervisión Botánica IoT'}
+                </p>
+                <div class="inline-flex items-center gap-1.5 px-3 py-1 mt-3 rounded-full text-[11px] font-medium border ${
+                  isOled ? 'bg-[#122233] border-[#1C3A5A] text-[#60A5FA]' : 'bg-[#EBF4FF] border-[#D1E3FF] text-[#2B6CB0]'
+                }">
+                  <i data-lucide="${state.authMode === 'register' ? 'user-plus' : 'shield-check'}" class="w-3.5 h-3.5"></i>
+                  <span>${state.authMode === 'register' ? 'Aislamiento de Flota • Multi-Usuario' : 'Autenticación JWT • ISO/IEC 27400'}</span>
+                </div>
+              </div>
+
+              ${state.activationNotice ? `
+              <div class="mb-5 p-4 rounded-2xl flex items-start gap-3 text-xs border animate-fade-in ${
+                state.activationNotice.type === 'success'
+                  ? (isOled ? 'bg-[#0E2E1B] border-[#2ECC71] text-[#2ECC71]' : 'bg-[#EAFBF0] border-[#2ECC71] text-[#1E7E34]')
+                  : state.activationNotice.type === 'pending'
+                  ? (isOled ? 'bg-[#102538] border-[#3B82F6] text-[#60A5FA]' : 'bg-[#EFF6FF] border-[#60A5FA] text-[#1D4ED8]')
+                  : (isOled ? 'bg-[#2E1810] border-[#E67E22] text-[#F39C12]' : 'bg-[#FFF8E6] border-[#F39C12] text-[#B7791F]')
+              }">
+                <i data-lucide="${state.activationNotice.type === 'success' ? 'check-circle' : state.activationNotice.type === 'pending' ? 'mail' : 'alert-circle'}" class="w-5 h-5 shrink-0 mt-0.5"></i>
+                <div class="leading-relaxed">
+                  ${state.activationNotice.type === 'success' ? `
+                    <div class="font-bold text-sm mb-0.5">¡Cuenta de operador activada!</div>
+                    <span>Ya puedes iniciar sesión con tu usuario <strong>${state.activationNotice.user || ''}</strong> y tu contraseña.</span>
+                  ` : state.activationNotice.type === 'pending' ? `
+                    <div class="font-bold text-sm mb-0.5">Verificación de Correo Enviada</div>
+                    <span>Hemos enviado un enlace de activación a <strong>${state.activationNotice.email}</strong>. Por favor haz clic en el enlace para habilitar tu cuenta antes de ingresar.</span>
+                  ` : `
+                    <div class="font-bold text-sm mb-0.5">Enlace no válido o expirado</div>
+                    <span>El enlace de activación no es válido o ya fue utilizado. Si tu cuenta aún no está activa, intenta registrarte nuevamente.</span>
+                  `}
+                </div>
+              </div>
+              ` : ''}
+
+              ${state.authMode === 'register' ? `
+              <!-- FORMULARIO DE REGISTRO CON DOBLE CONFIRMACIÓN -->
+              <form onsubmit="handleRegister(event)" class="space-y-3.5">
+                <div>
+                  <label class="block text-xs font-semibold text-[#718096] uppercase tracking-wider mb-1.5 ml-1">
+                    Nombre de Operador / Usuario
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0AEC0]">
+                      <i data-lucide="user" class="w-4 h-4"></i>
+                    </div>
+                    <input id="reg-username" type="text" required placeholder="ej. operador_2"
+                      class="w-full pl-10 pr-4 py-2.5 rounded-2xl text-sm placeholder-[#718096] focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 border ${inputBg}">
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-[#718096] uppercase tracking-wider mb-1.5 ml-1">
+                    Correo Electrónico
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0AEC0]">
+                      <i data-lucide="mail" class="w-4 h-4"></i>
+                    </div>
+                    <input id="reg-email" type="email" required placeholder="ej. operador@smartgarden.cl"
+                      class="w-full pl-10 pr-4 py-2.5 rounded-2xl text-sm placeholder-[#718096] focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 border ${inputBg}">
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-[#718096] uppercase tracking-wider mb-1.5 ml-1">
+                    Contraseña (mín 6 caracteres)
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0AEC0]">
+                      <i data-lucide="lock" class="w-4 h-4"></i>
+                    </div>
+                    <input id="reg-password" type="password" required placeholder="••••••••"
+                      class="w-full pl-10 pr-11 py-2.5 rounded-2xl text-sm placeholder-[#718096] focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 border ${inputBg}">
+                    <button type="button" onclick="togglePasswordVisibility('reg-password', 'reg-password-icon')" aria-label="Mostrar contraseña"
+                      class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#A0AEC0] hover:text-[#2ECC71] cursor-pointer">
+                      <i id="reg-password-icon" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-[#718096] uppercase tracking-wider mb-1.5 ml-1">
+                    Confirmar Contraseña (Doble confirmación)
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0AEC0]">
+                      <i data-lucide="check-circle" class="w-4 h-4"></i>
+                    </div>
+                    <input id="reg-password-confirm" type="password" required placeholder="Repite tu contraseña"
+                      class="w-full pl-10 pr-11 py-2.5 rounded-2xl text-sm placeholder-[#718096] focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 border ${inputBg}">
+                    <button type="button" onclick="togglePasswordVisibility('reg-password-confirm', 'reg-password-confirm-icon')" aria-label="Mostrar contraseña"
+                      class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#A0AEC0] hover:text-[#2ECC71] cursor-pointer">
+                      <i id="reg-password-confirm-icon" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit"
+                  class="w-full mt-2 py-3 px-4 bg-[#2ECC71] hover:bg-[#27AE60] text-white font-bold text-sm rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer">
+                  <i data-lucide="user-plus" class="w-4 h-4"></i>
+                  <span>Crear Cuenta e Ingresar</span>
+                </button>
+
+                <div class="pt-3 text-center">
+                  <p class="text-xs text-[#718096]">
+                    ¿Ya tienes una cuenta registrada?
+                    <button type="button" onclick="switchAuthMode('login')" class="ml-1 text-[#2ECC71] hover:underline font-bold cursor-pointer">
+                      Inicia sesión aquí
+                    </button>
+                  </p>
+                </div>
+              </form>
+              ` : `
+              <!-- FORMULARIO DE INICIO DE SESIÓN -->
+              <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-[#718096] uppercase tracking-wider mb-1.5 ml-1">
+                    Operador / Usuario
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0AEC0]">
+                      <i data-lucide="user" class="w-4 h-4"></i>
+                    </div>
+                    <input id="login-username" type="text" value="${savedUser}" required placeholder="ej. operador"
+                      class="w-full pl-10 pr-4 py-3 rounded-2xl text-sm placeholder-[#718096] focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 border ${inputBg}">
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-[#718096] uppercase tracking-wider mb-1.5 ml-1">
+                    Contraseña
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0AEC0]">
+                      <i data-lucide="lock" class="w-4 h-4"></i>
+                    </div>
+                    <input id="login-password" type="password" value="" required placeholder="Ingresa tu contraseña"
+                      class="w-full pl-10 pr-11 py-3 rounded-2xl text-sm placeholder-[#718096] focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 border ${inputBg}">
+                    <button type="button" onclick="togglePasswordVisibility('login-password', 'login-password-icon')" aria-label="Mostrar contraseña"
+                      class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#A0AEC0] hover:text-[#2ECC71] cursor-pointer">
+                      <i id="login-password-icon" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1 pb-2">
+                  <label for="remember-me" class="flex items-center gap-2 cursor-pointer select-none text-xs text-[#718096] hover:text-[#2ECC71] transition-colors">
+                    <input id="remember-me" type="checkbox" ${savedUser ? 'checked' : ''}
+                      class="w-4 h-4 rounded border-[#CBD5E0] text-[#2ECC71] focus:ring-[#2ECC71] cursor-pointer accent-[#2ECC71]">
+                    <span>Recordar usuario</span>
+                  </label>
+                  <span class="text-[11px] text-[#A0AEC0]">Auth SimpleJWT</span>
+                </div>
+
+                <button type="submit"
+                  class="w-full py-3.5 px-4 bg-[#2ECC71] hover:bg-[#27AE60] text-white font-medium text-sm rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer">
+                  <span>Ingresar a SmartGarden</span>
+                </button>
+
+                <div class="pt-3 text-center">
+                  <p class="text-xs text-[#718096]">
+                    ¿No tienes una cuenta de operador?
+                    <button type="button" onclick="switchAuthMode('register')" class="ml-1 text-[#2ECC71] hover:underline font-bold cursor-pointer">
+                      Regístrate aquí
+                    </button>
+                  </p>
+                </div>
+              </form>
+              `}
+
+              <div class="mt-8 pt-6 border-t border-inherit text-center">
+                <p class="text-[11px] text-[#718096]">
+                  Evaluación Sumativa 3 • Programación Backend INACAP 2026
+                </p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderDashboard() {
+      const isOled = state.theme === 'oled';
+      const bgHeader = isOled ? 'bg-[#121212]/95 border-[#262626]' : 'bg-[#FFFDF8]/95 border-[#D8DCCB]';
+      const cardBg = isOled ? 'bg-[#121212] border-[#262626]' : 'bg-[#FFFDF8] border-[#D8DCCB]';
+      const currentSensors = state.telemetry?.sensores || {};
+      const currentActuators = state.telemetry?.actuadores || {};
+      const isConnected = Boolean(state.telemetry);
+      const activeActuators = Number(Boolean(currentActuators.bombaAgua)) + Number(Boolean(currentActuators.nebulizador));
+      const apiLabel = isConnected ? 'API REST: Conectado' : 'API REST: Sincronizando';
+      const apiDotClass = 'bg-[#2ECC71] animate-pulse';
+
+      return `
+        <!-- Barra de Navegación Superior -->
+        <header class="sticky top-0 z-30 ${bgHeader} backdrop-blur-md border-b px-4 sm:px-8 py-3 transition-colors">
+          <div class="max-w-7xl mx-auto flex items-center justify-between">
+            
+            <!-- Logo Oficial de la App Móvil y Nombre -->
+            <div class="flex items-center gap-3">
+              <img src="/SmartGarden.png" alt="SmartGarden Logo" class="w-10 h-10 rounded-2xl shadow-xs object-contain">
+              <div>
+                <div class="flex items-center gap-2">
+                  <h1 class="text-base sm:text-lg font-bold tracking-tight">SmartGarden Web</h1>
+                  <span class="hidden sm:inline-block px-2.5 py-0.5 text-[10px] font-bold uppercase rounded-full ${
+                    isOled ? 'bg-[#1E1E1E] text-[#2ECC71] border border-[#2ECC71]/30' : 'bg-[#E2E8F0] text-[#4A5568]'
+                  }">Panel Experto IoT</span>
+                </div>
+                <p class="text-[11px] text-[#718096]">Supervisión Multi-Módulo & Telemetría Histórica</p>
+              </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="flex items-center gap-2 sm:gap-3">
+              
+              <!-- Conmutador Sol ☀️ / Luna 🌙 alternado (acción de cambio) -->
+              <button onclick="toggleTheme()" aria-label="${isOled ? 'Cambiar a modo claro' : 'Cambiar a modo OLED'}" title="${isOled ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}" class="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+                isOled ? 'bg-[#1A1A1A] border-[#333333] text-[#FFD600] hover:bg-[#252525]' : 'bg-white border-[#E2E8F0] text-[#4A5568] hover:bg-[#F0EEE6]'
+              }">
+                <i data-lucide="${isOled ? 'sun' : 'moon'}" class="w-4 h-4"></i>
+              </button>
+
+              <!-- Pill Badge API -->
+              <div class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                isOled ? 'bg-[#121212] border-[#262626] text-[#A0A0A0]' : 'bg-white border-[#E2E8F0] text-[#4A5568]'
+              }">
+                <span id="nav-api-dot" class="w-2 h-2 rounded-full ${apiDotClass}"></span>
+                <span id="nav-api-label">${apiLabel}</span>
+              </div>
+
+              <!-- Refrescar -->
+              <button onclick="fetchTelemetry(true)" aria-label="Actualizar telemetría" title="Refrescar telemetría" class="p-2.5 rounded-xl border cursor-pointer ${
+                isOled ? 'bg-[#1A1A1A] border-[#333333] text-[#A0A0A0]' : 'bg-white border-[#E2E8F0] text-[#718096]'
+              }">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+              </button>
+
+              <!-- Operador y Logout -->
+              <div class="flex items-center gap-2 pl-2 border-l border-inherit">
+                <span class="hidden sm:inline text-xs font-semibold">${state.operator}</span>
+                <button onclick="logout()" aria-label="Cerrar sesión" class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#C53030] bg-[#FFF5F5] hover:bg-[#E53E3E] hover:text-white border border-[#FED7D7] rounded-xl transition-colors cursor-pointer">
+                  <i data-lucide="log-out" class="w-4 h-4"></i>
+                  <span class="hidden sm:inline">Salir</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </header>
+
+        <!-- Contenedor Principal del Panel Web -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8">
+
+          <!-- Resumen operativo -->
+          <section id="operational-summary" class="${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs">
+            <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[#718096]">Centro de control</p>
+                <h2 class="mt-1 text-xl sm:text-2xl font-extrabold tracking-tight">Hola, ${state.operator}</h2>
+                <p class="mt-1 text-xs sm:text-sm text-[#718096]">Supervisa el estado de tu jardín y actúa cuando sea necesario.</p>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div class="${isOled ? 'bg-[#1A1A1A] border-[#2D2D2D]' : 'bg-white border-[#E2E8F0]'} min-w-[120px] rounded-2xl border px-3 py-2.5">
+                  <p class="text-[10px] uppercase tracking-wider text-[#718096]">Nodo central</p>
+                  <div class="mt-1 flex items-center gap-1.5 text-xs font-bold">
+                    <span id="header-node-dot" class="h-2 w-2 rounded-full ${apiDotClass}"></span>
+                    <span id="header-node-text">${isConnected ? 'Conectado' : 'Sincronizando'}</span>
+                  </div>
+                </div>
+                <div class="${isOled ? 'bg-[#1A1A1A] border-[#2D2D2D]' : 'bg-white border-[#E2E8F0]'} min-w-[120px] rounded-2xl border px-3 py-2.5">
+                  <p class="text-[10px] uppercase tracking-wider text-[#718096]">Macetas</p>
+                  <p id="header-plants-count" class="mt-1 text-xs font-bold">${state.userPlants.length} registradas</p>
+                </div>
+                <div class="${isOled ? 'bg-[#1A1A1A] border-[#2D2D2D]' : 'bg-white border-[#E2E8F0]'} col-span-2 sm:col-span-1 min-w-[120px] rounded-2xl border px-3 py-2.5">
+                  <p class="text-[10px] uppercase tracking-wider text-[#718096]">Actuadores</p>
+                  <p id="header-actuators-count" class="mt-1 text-xs font-bold">${currentActuators.paradaEmergencia ? 'Bloqueados' : `${activeActuators} activos`}</p>
+                </div>
+              </div>
+            </div>
+            <div id="botanical-search-section" class="mt-5 pt-5 border-t border-inherit">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="search" class="w-5 h-5 text-[#2ECC71]"></i>
+                    <h2 class="text-base font-bold tracking-tight">Motor de Búsqueda Botánica (Free Plant API)</h2>
+                  </div>
+                  <p class="text-xs text-[#718096] mt-0.5">
+                    Pasa el cursor sobre la foto para verla completa. Calibra parámetros antes de registrar en tu flota.
+                  </p>
+                </div>
+
+                <!-- Input de Búsqueda Asíncrona -->
+                <div class="relative w-full sm:w-80">
+                  <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0AEC0]">
+                    <i data-lucide="search" class="w-4 h-4"></i>
+                  </div>
+                  <input
+                    id="plant-search-input"
+                    type="text"
+                    placeholder="Buscar especie (ej. monstera, ficus, albahaca, lavanda)..."
+                    oninput="handleSearchInput(event)"
+                    class="w-full pl-10 pr-4 py-2.5 rounded-2xl text-xs border transition-all focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 ${
+                      isOled ? 'bg-[#181818] border-[#2A2A2A] text-white placeholder-[#666]' : 'bg-white border-[#E2E8F0] text-[#2D3748] placeholder-[#A0AEC0]'
+                    }"
+                  >
+                </div>
+              </div>
+
+              <!-- Contenedor de Resultados con Skeletons -->
+              <div id="search-results-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <!-- Se puebla dinámicamente con renderSearchResultsDOM() -->
+              </div>
+            </div>
+          </section>
+          
+          <!-- ====================================================
+               1. VISTA DE FLOTA (GRID DE MACETAS DEL OPERADOR)
+               ==================================================== -->
+          <section class="${cardBg} border rounded-3xl p-6 sm:p-7 shadow-xs">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+              <div class="flex items-center gap-2.5">
+                <i data-lucide="layout-grid" class="w-5 h-5 text-[#2ECC71]"></i>
+                <div>
+                  <h2 class="text-base font-bold tracking-tight">Vista de Flota • Macetas del Jardín</h2>
+                  <p class="text-xs text-[#718096]">Supervisión panorámica (Haz clic en una maceta para verla en el Gemelo Digital 3D)</p>
+                </div>
+              </div>
+              <button onclick="scrollToSearch()" class="px-3.5 py-2 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>Añadir Maceta Botánica</span>
+              </button>
+            </div>
+
+            <!-- Grid de Macetas -->
+            <div id="fleet-grid-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <!-- Se puebla dinámicamente con renderFleetGridDOM() -->
+            </div>
+          </section>
+
+
+          <!-- ====================================================
+               3. GEMELO DIGITAL 3D & TELEMETRÍA AMBIENTAL
+               ==================================================== -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            
+            <!-- Columna Izquierda: GEMELO DIGITAL 3D (Three.js) VINCULADO A MACETA SELECCIONADA -->
+            <div class="lg:col-span-5 ${cardBg} border rounded-3xl p-6 shadow-xs flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="box" class="w-4 h-4 text-[#2ECC71]"></i>
+                    <h3 class="text-xs font-bold uppercase tracking-wider">Gemelo Digital 3D</h3>
+                  </div>
+                  <span id="twin-header-chip" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#2ECC71]/15 text-[#2ECC71]">
+                    Maceta Activa
+                  </span>
+                </div>
+
+                <!-- Tarjeta de Planta Seleccionada & Semáforo de Salud -->
+                <div id="twin-plant-card" class="p-3.5 rounded-2xl border transition-all ${
+                  isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-[#FAFAFA] border-[#E8ECE7]'
+                }">
+                  <!-- Info de la Planta -->
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <img id="twin-plant-avatar" src="https://images.unsplash.com/photo-1463936575829-25148e1db1b8?w=200&auto=format&fit=crop&q=80" alt="Planta" class="w-10 h-10 rounded-xl object-cover shrink-0 border border-inherit shadow-xs">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-1.5">
+                          <p id="twin-plant-name" class="text-xs font-extrabold truncate">Supervisión General</p>
+                          <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[#718096]">EN 3D</span>
+                        </div>
+                        <p id="twin-plant-species" class="text-[10px] text-[#718096] italic truncate">Sin maceta asignada</p>
+                      </div>
+                    </div>
+
+                    <!-- Indicador Semáforo Badge -->
+                    <div id="twin-health-badge" class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 bg-[#2ECC71] text-white flex items-center gap-1 shadow-xs">
+                      <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                      <span id="twin-health-label">Óptimo</span>
+                    </div>
+                  </div>
+
+                  <!-- Barra de Semáforo Visual (Verde / Naranja / Rojo) -->
+                  <div class="mt-3 pt-2.5 border-t border-inherit">
+                    <div class="flex items-center justify-between text-[10px] mb-1.5 font-semibold">
+                      <span class="text-[#718096]">Estatus de Salud:</span>
+                      <span id="twin-health-score" class="font-bold text-[#2ECC71]">98% Saludable</span>
+                    </div>
+
+                    <!-- Indicador Semáforo 3 Pasos -->
+                    <div class="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-black/5 dark:bg-white/5 text-[9px] text-center font-bold">
+                      <div id="traffic-green" class="py-1 rounded-lg transition-all opacity-100 bg-[#2ECC71] text-white shadow-xs">
+                        🟢 Óptimo
+                      </div>
+                      <div id="traffic-orange" class="py-1 rounded-lg transition-all opacity-30 text-[#718096]">
+                        🟠 Atención
+                      </div>
+                      <div id="traffic-red" class="py-1 rounded-lg transition-all opacity-30 text-[#718096]">
+                        🔴 Crítico
+                      </div>
+                    </div>
+
+                    <!-- Diagnóstico Botánico -->
+                    <p id="twin-health-desc" class="mt-2 text-[10px] text-[#718096] leading-tight">
+                      Condiciones ideales. Sustrato hidratado y temperatura óptima.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Lienzo Three.js con altura generosa para encuadre total sin cortes -->
+              <div id="three-digital-twin" class="w-full h-72 sm:h-80 min-h-[290px] my-2 flex items-center justify-center relative cursor-grab active:cursor-grabbing select-none"></div>
+
+              <!-- Pie de Tarjeta 3D: Métricas Clave y Riego Calibrado Directo -->
+              <div class="p-3 rounded-2xl border text-xs flex items-center justify-between ${
+                isOled ? 'bg-[#181818] border-[#2A2A2A] text-[#AAA]' : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#718096]'
+              }">
+                <div class="flex items-center gap-2">
+                  <span id="twin-status-dot" class="w-2.5 h-2.5 rounded-full bg-[#2ECC71] animate-ping"></span>
+                  <span id="twin-status-footer" class="font-medium text-xs">Suelo: <strong id="dom-twin-hum" class="text-[#2ECC71] font-bold">52%</strong></span>
+                </div>
+                <button id="twin-quick-action-btn" onclick="triggerTwinWater()"
+                  class="px-2.5 py-1 bg-[#2ECC71]/15 hover:bg-[#2ECC71]/25 text-[#2ECC71] font-bold rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer">
+                  <i data-lucide="droplet" class="w-3 h-3"></i>
+                  <span id="twin-btn-text">Regar Maceta</span>
+                </button>
+              </div>
+
+              <!-- PANEL SIMULADOR MANUAL IOT (TIPO ANDROID) -->
+              <div class="mt-3.5 p-3.5 rounded-2xl border ${
+                isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-[#FAFAF8] border-[#E8ECE7]'
+              }">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-1.5">
+                    <i data-lucide="sliders" class="w-3.5 h-3.5 text-[#2ECC71]"></i>
+                    <span class="text-xs font-bold uppercase tracking-wide">Simulador Manual IoT</span>
+                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[#718096] font-semibold">Tipo Android</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span id="sim-status-badge" class="text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                      state.simulation.active ? 'bg-amber-500 text-white animate-pulse' : 'bg-black/10 dark:bg-white/10 text-[#718096]'
+                    }">
+                      ${state.simulation.active ? 'Simulación Activa' : 'Sensores Reales'}
+                    </span>
+                    <button type="button" onclick="resetSimulationToReal()" title="Restablecer a sensores físicos reales"
+                      class="text-[10px] text-[#718096] hover:text-[#2ECC71] underline cursor-pointer font-semibold">
+                      Restablecer
+                    </button>
+                  </div>
+                </div>
+
+                <p class="text-[11px] text-[#718096] mb-2 leading-tight">
+                  Prueba condiciones fisiológicas extremas en tiempo real sobre la planta seleccionada:
+                </p>
+
+                <!-- Botones de Escenarios Rápidos -->
+                <div class="grid grid-cols-4 gap-1.5 mb-2.5 text-[10px]">
+                  <button type="button" onclick="triggerSimulationPreset('sequia')"
+                    class="py-1 px-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 text-[#DD6B20] font-bold transition-all border border-orange-500/30 cursor-pointer text-center">
+                    🌵 Sequía
+                  </button>
+                  <button type="button" onclick="triggerSimulationPreset('sobrecalentamiento')"
+                    class="py-1 px-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-[#E53E3E] font-bold transition-all border border-red-500/30 cursor-pointer text-center">
+                    🔥 Calor
+                  </button>
+                  <button type="button" onclick="triggerSimulationPreset('exceso')"
+                    class="py-1 px-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-[#2B6CB0] font-bold transition-all border border-blue-500/30 cursor-pointer text-center">
+                    🌊 Exceso
+                  </button>
+                  <button type="button" onclick="triggerSimulationPreset('optimo')"
+                    class="py-1 px-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-[#2ECC71] font-bold transition-all border border-emerald-500/30 cursor-pointer text-center">
+                    🌿 Óptimo
+                  </button>
+                </div>
+
+                <!-- Sliders Manuales Continuos -->
+                <div class="space-y-2 pt-1 border-t border-inherit">
+                  <div>
+                    <div class="flex justify-between text-[11px] font-semibold mb-0.5">
+                      <span class="text-[#718096]">Temperatura Manual:</span>
+                      <span id="sim-temp-val" class="font-bold text-[#DD6B20]">${state.simulation.temperatura.toFixed(1)}°C</span>
+                    </div>
+                    <input id="sim-temp-slider" type="range" min="10" max="45" step="0.5" value="${state.simulation.temperatura}"
+                      oninput="setSimulationParam('temperatura', this.value)"
+                      class="w-full accent-[#DD6B20] cursor-pointer">
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-[11px] font-semibold mb-0.5">
+                      <span class="text-[#718096]">Humedad Suelo Manual:</span>
+                      <span id="sim-hum-val" class="font-bold text-[#2B6CB0]">${Math.round(state.simulation.humedadSuelo)}%</span>
+                    </div>
+                    <input id="sim-hum-slider" type="range" min="5" max="95" step="1" value="${state.simulation.humedadSuelo}"
+                      oninput="setSimulationParam('humedadSuelo', this.value)"
+                      class="w-full accent-[#2B6CB0] cursor-pointer">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Columna Derecha: TARJETAS DE SENSORES, TELEMETRÍA HISTÓRICA Y ACTUADORES -->
+            <div class="lg:col-span-7 space-y-4 sm:space-y-5">
+              
+              <!-- Rejilla de 3 Sensores Clave -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                
+                <!-- Temperatura -->
+                <div class="rounded-3xl p-4 sm:p-5 border shadow-xs flex flex-col justify-between ${
+                  isOled ? 'bg-[#121212] border-[#442211]' : 'bg-[#FFF0E5] border-[#F4C4A5]'
+                }">
+                  <div>
+                    <div class="flex items-center justify-between mb-2 sm:mb-3">
+                      <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
+                        isOled ? 'bg-[#2D160A] text-[#FF7043]' : 'bg-[#FFE4D4] text-[#DD6B20]'
+                      }">
+                        <i data-lucide="thermometer" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                      </div>
+                      <span id="badge-temp" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FED7C3] text-[#C05621]">Normal</span>
+                    </div>
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-[#9C4221]">Temperatura</p>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                      <span id="dom-sensor-temp" class="text-2xl sm:text-3xl font-extrabold text-[#7B341E]">26.4</span>
+                      <span class="text-sm font-bold text-[#9C4221]">°C</span>
+                    </div>
+                  </div>
+                  <p class="text-[10px] text-[#9C4221] mt-2 pt-2 border-t border-inherit">TMP36 (Pin A0) • Umbral: 35°C</p>
+                </div>
+
+                <!-- Humedad -->
+                <div class="rounded-3xl p-4 sm:p-5 border shadow-xs flex flex-col justify-between ${
+                  isOled ? 'bg-[#121212] border-[#0E2F44]' : 'bg-[#EAF4FF] border-[#B8D7F5]'
+                }">
+                  <div>
+                    <div class="flex items-center justify-between mb-2 sm:mb-3">
+                      <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
+                        isOled ? 'bg-[#0E2F44] text-[#4FC3F7]' : 'bg-[#DCEBFF] text-[#2B6CB0]'
+                      }">
+                        <i data-lucide="droplets" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                      </div>
+                      <span id="badge-hum" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#B8D7F5] text-[#245A91]">Óptimo</span>
+                    </div>
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-[#2C5282]">Humedad Suelo</p>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                      <span id="dom-sensor-hum" class="text-2xl sm:text-3xl font-extrabold text-[#1A365D]">52</span>
+                      <span class="text-sm font-bold text-[#2C5282]">%</span>
+                    </div>
+                  </div>
+                  <p class="text-[10px] text-[#2C5282] mt-2 pt-2 border-t border-inherit">Higrómetro (Pin A2) • Mín: 30%</p>
+                </div>
+
+                <!-- Luz Solar -->
+                <div class="rounded-3xl p-4 sm:p-5 border shadow-xs flex flex-col justify-between ${
+                  isOled ? 'bg-[#121212] border-[#3E3200]' : 'bg-[#FFF9DC] border-[#F1D58A]'
+                }">
+                  <div>
+                    <div class="flex items-center justify-between mb-2 sm:mb-3">
+                      <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
+                        isOled ? 'bg-[#3E3200] text-[#FFD54F]' : 'bg-[#FEF3C7] text-[#D69E2E]'
+                      }">
+                        <i data-lucide="sun" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                      </div>
+                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#975A16]">Fotoperíodo</span>
+                    </div>
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-[#975A16]">Radiación Solar</p>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                      <span id="dom-sensor-light" class="text-2xl sm:text-3xl font-extrabold text-[#744210]">78</span>
+                      <span class="text-sm font-bold text-[#975A16]">%</span>
+                    </div>
+                  </div>
+                  <p class="text-[10px] text-[#975A16] mt-2 pt-2 border-t border-inherit">Sensor LDR (Pin A1) • 0-5V</p>
+                </div>
+
+              </div>
+
+              <!-- Telemetría Histórica & Curvas de Tendencia (Amplitud y altura optimizada para visualización clara) -->
+              <div class="${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div class="flex items-center gap-2.5">
+                    <div class="${isOled ? 'bg-[#1E3325]' : 'bg-[#E8F5E9]'} flex h-9 w-9 items-center justify-center rounded-xl text-[#2ECC71]">
+                      <i data-lucide="line-chart" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                      <h4 class="text-xs sm:text-sm font-bold uppercase tracking-wider">Telemetría Histórica & Umbrales</h4>
+                      <p class="text-[11px] text-[#718096]">Superposición fisiológica en tiempo real</p>
+                    </div>
+                  </div>
+
+                  <!-- Selector 24h vs 7d -->
+                  <div class="flex items-center gap-1.5 p-1 rounded-xl border self-start sm:self-auto ${
+                    isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-[#FFFFFF] border-[#E2E8F0]'
+                  }">
+                    <button onclick="fetchHistory('24h')" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      state.historyRange === '24h' ? 'bg-[#2ECC71] text-white' : 'text-[#718096]'
+                    }">Últimas 24h</button>
+                    <button onclick="fetchHistory('7d')" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      state.historyRange === '7d' ? 'bg-[#2ECC71] text-white' : 'text-[#718096]'
+                    }">Últimos 7d</button>
+                  </div>
+                </div>
+
+                <!-- Canvas del Gráfico Chart.js con mayor altura y amplitud para PC y móvil -->
+                <div class="relative w-full h-64 sm:h-72 lg:h-80">
+                  <canvas id="historyChart"></canvas>
+                </div>
+
+                <div class="mt-3.5 pt-3 border-t border-inherit flex flex-wrap items-center justify-between gap-2 text-xs text-[#718096]">
+                  <div class="flex items-center gap-4">
+                    <span class="inline-flex items-center gap-1.5">
+                      <span class="w-3 h-0.5 bg-[#E53E3E] inline-block"></span>
+                      <span>Límite Térmico: 35.0°C</span>
+                    </span>
+                    <span class="inline-flex items-center gap-1.5">
+                      <span class="w-3 h-0.5 bg-[#3182CE] inline-block"></span>
+                      <span>Límite Hídrico: 30.0%</span>
+                    </span>
+                  </div>
+                  <span class="hidden sm:inline">Persistencia activa en TelemetryLog</span>
+                </div>
+              </div>
+
+              <!-- Controles de Actuadores y Dosificación -->
+              <div id="actuators-container" class="${cardBg} border rounded-3xl p-5 shadow-xs">
+                <!-- Se actualiza dinámicamente con updateActuatorsDOM() -->
+              </div>
+
+            </div>
+          </div>
+
+
+          <!-- ====================================================
+               ==================================================== -->
+
+        </main>
+      `;
+    }
+
+    // ==========================================
+    // ACTUALIZACIONES PUNTUALES EN EL DOM
+    // ==========================================
+    function updateTelemetryCardsDOM() {
+      const eff = getEffectiveTelemetry();
+      const s = eff.sensores;
+      
+      const tempEl = document.getElementById('dom-sensor-temp');
+      const humEl = document.getElementById('dom-sensor-hum');
+      const lightEl = document.getElementById('dom-sensor-light');
+      const twinHumEl = document.getElementById('dom-twin-hum');
+      
+      if (tempEl) tempEl.innerText = s.temperatura.toFixed(1);
+      if (humEl) humEl.innerText = Math.round(s.humedadSuelo);
+      if (lightEl) lightEl.innerText = Math.round(s.luzSolar);
+      if (twinHumEl) twinHumEl.innerText = `${Math.round(s.humedadSuelo)}%`;
+
+      // Badges
+      const badgeTemp = document.getElementById('badge-temp');
+      if (badgeTemp) {
+        if (s.temperatura > 35.0) {
+          badgeTemp.innerText = '🔥 Crítico (>35°C)';
+          badgeTemp.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E53E3E] text-white animate-bounce';
+        } else {
+          badgeTemp.innerText = 'Normal';
+          badgeTemp.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FED7C3] text-[#C05621]';
+        }
+      }
+
+      const badgeHum = document.getElementById('badge-hum');
+      if (badgeHum) {
+        if (s.humedadSuelo < 30.0) {
+          badgeHum.innerText = '💧 Sequía (<30%)';
+          badgeHum.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E53E3E] text-white animate-pulse';
+        } else {
+          badgeHum.innerText = 'Óptimo';
+          badgeHum.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#B8D7F5] text-[#245A91]';
+        }
+      }
+
+      updateActuatorsDOM();
+      updateTwinDOM();
+      renderFleetGridDOM();
+    }
+
+    function updateActuatorsDOM() {
+      const container = document.getElementById('actuators-container');
+      if (!container) return;
+
+      const a = state.telemetry?.actuadores || { bombaAgua: false, nebulizador: false, dosisRiegoMl: 100, paradaEmergencia: false };
+      const isOled = state.theme === 'oled';
+      const isEStop = a.paradaEmergencia;
+
+      // Actualizar contadores del resumen superior en vivo
+      const actCountEl = document.getElementById('header-actuators-count');
+      if (actCountEl) {
+        const activeCount = Number(Boolean(a.bombaAgua)) + Number(Boolean(a.nebulizador));
+        actCountEl.innerText = isEStop ? 'Bloqueados' : `${activeCount} activos`;
+      }
+      const nodeStatusEl = document.getElementById('header-node-text');
+      if (nodeStatusEl) {
+        nodeStatusEl.innerText = 'Conectado';
+      }
+      const navApiLabel = document.getElementById('nav-api-label');
+      if (navApiLabel) {
+        navApiLabel.innerText = 'API REST: Conectado';
+      }
+
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider">Actuadores & Parada de Emergencia</h4>
+            <p class="text-[11px] text-[#718096]">Supervisión remota de relés en tiempo real</p>
+          </div>
+          <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+            isEStop ? 'bg-[#E53E3E] text-white' : 'bg-[#2ECC71]/15 text-[#2ECC71]'
+          }">
+            ${isEStop ? 'FAIL-SAFE ACTIVO' : 'SISTEMA SEGURO'}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- Bomba -->
+          <div class="p-3.5 rounded-2xl border flex flex-col justify-between ${
+            isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-white border-[#E2E8F0]'
+          }">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold">Bomba Agua (D8)</span>
+              <span class="text-[10px] font-bold ${a.bombaAgua ? 'text-[#2ECC71]' : 'text-gray-400'}">
+                ${a.bombaAgua ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            <button onclick="sendActuatorCommand({ bombaAgua: ${!a.bombaAgua} })" ${isEStop ? 'disabled' : ''}
+              class="w-full py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-40 transition-all ${
+                a.bombaAgua ? 'bg-[#FED7D7] text-[#C53030]' : 'bg-[#2ECC71] text-white'
+              }">
+              ${a.bombaAgua ? 'Detener Bomba' : 'Activar Bomba'}
+            </button>
+          </div>
+
+          <!-- Nebulizador -->
+          <div class="p-3.5 rounded-2xl border flex flex-col justify-between ${
+            isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-white border-[#E2E8F0]'
+          }">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold">Nebulizador</span>
+              <span class="text-[10px] font-bold ${a.nebulizador ? 'text-[#3182CE]' : 'text-gray-400'}">
+                ${a.nebulizador ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            <button onclick="sendActuatorCommand({ nebulizador: ${!a.nebulizador} })" ${isEStop ? 'disabled' : ''}
+              class="w-full py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-40 transition-all ${
+                a.nebulizador ? 'bg-[#FED7D7] text-[#C53030]' : 'bg-[#3182CE] text-white'
+              }">
+              ${a.nebulizador ? 'Apagar Niebla' : 'Iniciar Niebla'}
+            </button>
+          </div>
+
+          <!-- Dosificador Selector -->
+          <div class="p-3.5 rounded-2xl border flex flex-col justify-between ${
+            isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-white border-[#E2E8F0]'
+          }">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-bold">Dosis: <strong class="text-[#2ECC71]">${a.dosisRiegoMl || 100} ml</strong></span>
+              <span class="text-[9px] text-[#718096] uppercase font-bold">Calibración</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1 mb-2">
+              ${[50, 100, 250].map(d => `
+                <button onclick="sendActuatorCommand({ dosisRiegoMl: ${d} })" ${isEStop ? 'disabled' : ''}
+                  class="py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${
+                    a.dosisRiegoMl === d ? 'bg-[#2ECC71] text-white border-[#2ECC71]' : 'border-gray-200 text-gray-500 hover:border-[#2ECC71]/50'
+                  }">
+                  ${d}ml
+                </button>
+              `).join('')}
+            </div>
+            <!-- Entrada manual de ML personalizados -->
+            <div class="flex items-center gap-1.5 pt-1.5 border-t border-inherit">
+              <div class="relative flex-1">
+                <input id="input-custom-dose" type="number" min="10" max="2500" step="10"
+                  placeholder="Otro ml..."
+                  value="${[50, 100, 250].includes(a.dosisRiegoMl) ? '' : a.dosisRiegoMl}"
+                  ${isEStop ? 'disabled' : ''}
+                  class="w-full px-2 py-1 text-xs rounded-lg border bg-inherit text-inherit focus:outline-none focus:ring-1 focus:ring-[#2ECC71]">
+                <span class="absolute right-2 top-1 text-[10px] text-[#718096] pointer-events-none">ml</span>
+              </div>
+              <button onclick="applyCustomDose()" ${isEStop ? 'disabled' : ''}
+                class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-[#2ECC71] hover:bg-[#27AE60] text-white cursor-pointer transition-all">
+                Fijar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- E-STOP -->
+        <div class="mt-4 pt-3 border-t border-inherit flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="alert-octagon" class="w-4 h-4 text-[#E53E3E]"></i>
+            <span class="text-xs font-semibold ${isEStop ? 'text-[#E53E3E]' : ''}">
+              ${isEStop ? 'E-STOP ACTIVO: Energía Cortada' : 'Parada de Emergencia (E-STOP)'}
+            </span>
+          </div>
+          <button onclick="sendActuatorCommand({ paradaEmergencia: ${!isEStop} })"
+            class="px-4 py-1.5 rounded-xl text-xs font-bold text-white transition-all cursor-pointer ${
+              isEStop ? 'bg-[#2ECC71] hover:bg-[#27AE60]' : 'bg-[#E53E3E] hover:bg-[#C53030]'
+            }">
+            ${isEStop ? 'Restablecer (Reset)' : 'ACCIONAR E-STOP'}
+          </button>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    // ==========================================
+    // RENDERIZADO DE FLOTA CON VISTA PREVIA HOVER
+    // ==========================================
+    function renderFleetGridDOM() {
+      const container = document.getElementById('fleet-grid-container');
+      if (!container) return;
+
+      const isOled = state.theme === 'oled';
+      const itemBg = isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-white border-[#E2E8F0]';
+
+      // Actualizar contador del header resumen en vivo
+      const plantsCountEl = document.getElementById('header-plants-count');
+      if (plantsCountEl) {
+        plantsCountEl.innerText = `${state.userPlants.length} registradas`;
+      }
+
+      if (state.userPlants.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full p-8 text-center rounded-2xl border border-dashed border-[#E2E8F0] dark:border-[#2A2A2A] text-xs text-[#718096]">
+            No tienes macetas registradas aún. Busca una planta en el catálogo inferior para añadirla a tu flota y visualizarla en 3D.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = state.userPlants.map(p => {
+        const isSelected = p.id === state.selectedFleetPlantId;
+        const health = calculatePlantHealth(p, getPlantTelemetry(p));
+        const selectedBorder = isSelected
+          ? 'ring-2 ring-[#2ECC71] shadow-lg border-[#2ECC71]/70'
+          : 'hover:border-[#2ECC71]/40';
+
+        return `
+        <div onclick="selectFleetPlant(${p.id})"
+          class="${itemBg} ${selectedBorder} border rounded-2xl p-4 shadow-xs transition-all flex flex-col justify-between group relative cursor-pointer">
+          
+          <div>
+            <!-- Contenedor de Imagen con Lupa / Preview en Tamaño Real sin maximizar -->
+            <div class="relative w-full h-44 rounded-xl overflow-hidden mb-3 bg-gray-100 cursor-zoom-in">
+              <img src="${p.imagen_url}" alt="${p.nombre}" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300">
+              
+              <!-- Badges Superiores: Dosis y Botón Eliminar -->
+              <div class="absolute top-2 left-2 right-2 flex items-center justify-between z-10 pointer-events-none">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/75 text-white backdrop-blur-xs shadow-sm">
+                  ${p.dosis_riego_ml} ml
+                </span>
+
+                <!-- Botón Eliminar Maceta (Trash Icon) con pointer-events-auto -->
+                <button type="button"
+                  onclick="deleteFleetPlant(event, ${p.id}, '${p.nombre.replace(/'/g, "\\'")}')"
+                  title="Eliminar maceta de la flota"
+                  class="pointer-events-auto p-1.5 rounded-lg bg-black/65 hover:bg-red-600 text-white hover:text-white transition-all shadow-sm flex items-center justify-center cursor-pointer">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+
+              <!-- Badges Inferiores: Badge Gemelo 3D y Hover hint -->
+              <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between z-10 pointer-events-none">
+                <span class="px-2 py-0.5 rounded-md text-[9px] font-semibold bg-black/60 text-white opacity-80 group-hover:opacity-0 transition-opacity">
+                  🔍 Pasa el cursor
+                </span>
+                ${isSelected ? `
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#2ECC71] text-white shadow-sm flex items-center gap-1">
+                    <i data-lucide="box" class="w-3 h-3"></i> En Gemelo 3D
+                  </span>
+                ` : `
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-black/60 text-white/90 group-hover:bg-[#2ECC71] transition-colors flex items-center gap-1">
+                    Ver en 3D
+                  </span>
+                `}
+              </div>
+
+              <!-- Tarjeta Flotante con Imagen Completa en Proporción Real -->
+              <div class="absolute inset-0 z-30 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 pointer-events-none p-2 flex items-center justify-center bg-gradient-to-t from-black/90 via-black/70 to-black/55 backdrop-blur-sm">
+                <div class="w-full h-full flex flex-col items-center justify-center rounded-xl border border-[#2ECC71]/60 p-2 shadow-[0_0_24px_rgba(46,204,113,0.28)]">
+                  <img src="${p.imagen_url}" alt="${p.nombre}" class="max-w-[92%] max-h-[82%] object-contain rounded-lg drop-shadow-[0_8px_12px_rgba(0,0,0,0.45)]">
+                  <span class="mt-1 rounded-full bg-[#2ECC71] px-2.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                    Vista completa
+                  </span>
+                  <span class="mt-1 max-w-[90%] truncate text-[9px] text-white/80">
+                    ${p.especie}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cabecera de la Maceta con Semáforo de Salud individual -->
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h4 class="text-xs font-bold tracking-tight line-clamp-1">${p.nombre}</h4>
+                <p class="text-[11px] text-[#718096] italic line-clamp-1">${p.especie}</p>
+              </div>
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${health.badgeClass}">
+                ${health.status === 'optimo' ? '🟢 Óptimo' : health.status === 'atencion' ? '🟠 Atención' : '🔴 Crítico'}
+              </span>
+            </div>
+            
+            <div class="mt-3 pt-2 border-t border-inherit space-y-1.5 text-[11px]">
+              <div class="flex justify-between">
+                <span class="text-[#718096]">Humedad Mínima:</span>
+                <span class="font-bold text-[#2B6CB0]">${p.humedad_min}%</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-[#718096]">Límite Térmico:</span>
+                <span class="font-bold text-[#DD6B20]">${p.temp_max}°C</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 flex gap-2">
+            <button type="button"
+              onclick="event.stopPropagation(); triggerQuickWater('${p.nombre.replace(/'/g, "\\'")}', ${p.dosis_riego_ml})"
+              class="w-full py-2 bg-[#D9F0DC] hover:bg-[#BCE3C1] text-[#246B2B] text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+              <i data-lucide="droplet" class="w-3.5 h-3.5"></i>
+              <span>Riego Calibrado (${p.dosis_riego_ml}ml)</span>
+            </button>
+          </div>
+        </div>
+      `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    // ==========================================
+    // RENDERIZADO DE BÚSQUEDA CON VISTA PREVIA HOVER
+    // ==========================================
+    function renderSearchResultsDOM() {
+      const container = document.getElementById('search-results-container');
+      if (!container) return;
+
+      const isOled = state.theme === 'oled';
+      const itemBg = isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-white border-[#E2E8F0]';
+
+      if (state.isSearching) {
+        container.innerHTML = [1, 2, 3, 4].map(() => `
+          <div class="${itemBg} border rounded-2xl p-4 animate-pulse space-y-3">
+            <div class="w-full h-44 rounded-xl bg-gray-200 dark:bg-gray-800"></div>
+            <div class="w-3/4 h-3.5 rounded bg-gray-200 dark:bg-gray-800"></div>
+            <div class="w-1/2 h-2.5 rounded bg-gray-200 dark:bg-gray-800"></div>
+            <div class="w-full h-8 rounded-xl bg-gray-200 dark:bg-gray-800 mt-2"></div>
+          </div>
+        `).join('');
+        return;
+      }
+
+      if (state.searchResults.length === 0) {
+        if (!state.searchQuery.trim()) {
+          container.innerHTML = '';
+          return;
+        }
+        container.innerHTML = `
+          <div class="col-span-full p-8 text-center text-xs text-[#718096]">
+            No se encontraron especies botánicas para "${state.searchQuery}". Intenta con otro término.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = state.searchResults.map(p => `
+        <div class="${itemBg} border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group relative">
+          <div>
+            <!-- Contenedor con Hover Popover de Proporción Real -->
+            <div class="relative w-full h-44 rounded-xl overflow-hidden mb-3 bg-gray-100 cursor-zoom-in">
+              <img src="${p.imagen_url}" alt="${p.nombre_comun}" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300">
+              
+              <!-- Badge sutil de ayuda -->
+              <span class="absolute bottom-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-semibold bg-black/60 text-white opacity-80 group-hover:opacity-0 transition-opacity">
+                🔍 Pasa el cursor
+              </span>
+
+              <!-- Tarjeta Flotante con Imagen Completa en Proporción Real (No maximizada) -->
+              <div class="absolute inset-0 z-30 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 pointer-events-none p-2 flex items-center justify-center bg-gradient-to-t from-black/90 via-black/70 to-black/55 backdrop-blur-sm">
+                <div class="w-full h-full flex flex-col items-center justify-center rounded-xl border border-[#2ECC71]/60 p-2 shadow-[0_0_24px_rgba(46,204,113,0.28)]">
+                  <img src="${p.imagen_url}" alt="${p.nombre_comun}" class="max-w-[92%] max-h-[82%] object-contain rounded-lg drop-shadow-[0_8px_12px_rgba(0,0,0,0.45)]">
+                  <span class="mt-1 rounded-full bg-[#2ECC71] px-2.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                    Vista completa
+                  </span>
+                  <span class="mt-1 max-w-[90%] truncate text-[9px] text-white/80">
+                    ${p.especie}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <h4 class="text-xs font-bold line-clamp-1">${p.nombre_comun}</h4>
+            <p class="text-[11px] text-[#718096] italic line-clamp-1">${p.especie}</p>
+            <p class="text-[10px] text-[#A0AEC0] mt-0.5">${p.familia}</p>
+
+            <!-- Ficha de Condiciones Óptimas Recomendadas -->
+            <div class="mt-2.5 pt-2 border-t border-inherit grid grid-cols-2 gap-1.5 text-[10px]">
+              <div class="flex items-center gap-1 text-[#2B6CB0] font-semibold" title="Humedad mínima del suelo recomendada">
+                <span>💧 Mín:</span>
+                <span class="font-bold">${p.humedad_min || 30}% H</span>
+              </div>
+              <div class="flex items-center gap-1 text-[#E65100] font-semibold" title="Rango de temperatura óptimo">
+                <span>🌡️ Temp:</span>
+                <span class="font-bold">${p.temp_min || 12}°C - ${p.temp_max || 32}°C</span>
+              </div>
+              <div class="col-span-2 flex items-center gap-1 text-[#D69E2E] font-semibold truncate" title="Requerimiento lumínico">
+                <span>☀️ Luz:</span>
+                <span class="font-bold truncate">${p.luz_optima || 'Luz indirecta'}</span>
+              </div>
+              <div class="col-span-2 flex items-center gap-1 text-[#2ECC71] font-semibold" title="Dosis recomendada de riego">
+                <span>💦 Riego calibrado:</span>
+                <span class="font-bold">${p.dosis_riego_ml || 100} ml</span>
+              </div>
+            </div>
+
+            <p class="text-[11px] text-[#718096] mt-2 line-clamp-2">${p.descripcion}</p>
+          </div>
+
+          <button onclick="openPlantModal('${String(p.id).replace(/'/g, "\\'")}')"
+            class="mt-4 w-full py-2 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs">
+            <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+            <span>Ajustar Parámetros</span>
+          </button>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    let searchDebounceTimeout = null;
+    function handleSearchInput(e) {
+      const q = e.target.value;
+      if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
+      searchDebounceTimeout = setTimeout(() => {
+        searchPlants(q);
+      }, 300);
+    }
+
+    function scrollToSearch() {
+      const el = document.getElementById('botanical-search-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setTimeout(() => document.querySelector('#plant-search-input')?.focus(), 450);
+      }
+    }
+
+    function triggerQuickWater(nombre, dosis) {
+      sendActuatorCommand({ bombaAgua: true, dosisRiegoMl: dosis });
+      showQuickWaterToast(nombre, dosis);
+    }
+
+    function showQuickWaterToast(nombre, dosis) {
+      const existing = document.getElementById('quick-water-toast');
+      if (existing) existing.remove();
+
+      const isOled = state.theme === 'oled';
+      const toast = document.createElement('div');
+      toast.id = 'quick-water-toast';
+      toast.className = `fixed right-4 top-4 z-[70] w-[min(360px,calc(100vw-2rem))] translate-x-8 opacity-0 rounded-2xl border p-4 shadow-2xl transition-all duration-500 ${
+        isOled
+          ? 'bg-[#121212] border-[#2ECC71]/50 text-[#E0E0E0] shadow-[#2ECC71]/10'
+          : 'bg-[#FAF9F5] border-[#A5D6A7] text-[#2D3748] shadow-[#2ECC71]/20'
+      }`;
+
+      const content = document.createElement('div');
+      content.className = 'flex items-start gap-3';
+
+      const icon = document.createElement('div');
+      icon.className = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#2ECC71]/15 text-[#2ECC71]';
+      icon.innerHTML = '<i data-lucide="droplets" class="h-5 w-5"></i>';
+
+      const copy = document.createElement('div');
+      copy.className = 'min-w-0 flex-1';
+      copy.innerHTML = `
+        <p class="text-[10px] font-bold uppercase tracking-wider text-[#2ECC71]">Riego calibrado</p>
+        <p class="mt-1 text-sm font-bold">Comando enviado</p>
+        <p class="mt-0.5 truncate text-xs ${isOled ? 'text-[#A0A0A0]' : 'text-[#718096]'}"></p>
+      `;
+      copy.querySelector('p:last-child').textContent = `${nombre} • ${dosis} ml`;
+
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.setAttribute('aria-label', 'Cerrar notificación');
+      close.className = 'rounded-lg p-1 text-[#A0AEC0] transition-colors hover:bg-[#2ECC71]/10 hover:text-[#2ECC71]';
+      close.innerHTML = '<i data-lucide="x" class="h-4 w-4"></i>';
+      close.onclick = () => dismissQuickWaterToast(toast);
+
+      content.append(icon, copy, close);
+      toast.appendChild(content);
+      document.body.appendChild(toast);
+      lucide.createIcons();
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-x-8', 'opacity-0');
+        toast.classList.add('translate-x-0', 'opacity-100');
+      });
+      toast._dismissTimer = setTimeout(() => dismissQuickWaterToast(toast), 4500);
+    }
+
+    function dismissQuickWaterToast(toast) {
+      if (!toast || !toast.isConnected) return;
+      clearTimeout(toast._dismissTimer);
+      toast.classList.add('translate-x-8', 'opacity-0');
+      setTimeout(() => toast.remove(), 300);
+    }
+
+    // ==========================================
+    // MODAL DE AJUSTE FINO DE PARÁMETROS
+    // ==========================================
+    function openPlantModal(plantId) {
+      const plant = state.searchResults.find(p => p.id === plantId);
+      if (!plant) return;
+      state.selectedPlantForConfig = plant;
+
+      const container = document.getElementById('plant-modal-container');
+      const isOled = state.theme === 'oled';
+      const cardBg = isOled ? 'bg-[#181818] border-[#333333]' : 'bg-white border-[#E2E8F0]';
+
+      container.innerHTML = `
+        <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div class="${cardBg} border rounded-3xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            
+            <button onclick="closePlantModal()" class="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 cursor-pointer">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <!-- Cabecera del Modal con Imagen Completa en Proporción Natural -->
+            <div class="flex items-center gap-4 mb-4 pb-4 border-b border-inherit">
+              <div class="w-20 h-20 rounded-2xl overflow-hidden bg-gray-100 shrink-0 border border-gray-200">
+                <img src="${plant.imagen_url}" alt="${plant.nombre_comun}" class="w-full h-full object-contain p-1">
+              </div>
+              <div>
+                <h3 class="text-base font-bold">${plant.nombre_comun}</h3>
+                <p class="text-xs text-[#718096] italic">${plant.especie} • ${plant.familia}</p>
+                <span class="text-[10px] font-bold text-[#2ECC71]">Luz: ${plant.luz_optima}</span>
+              </div>
+            </div>
+
+            <form onsubmit="savePlantConfig(event)" class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-[#718096] mb-1">Nombre Personalizado de la Maceta</label>
+                <input id="cfg-nombre" type="text" value="${plant.nombre_comun} - Maceta" required
+                  class="w-full px-3.5 py-2.5 rounded-xl text-xs border ${isOled ? 'bg-[#222] border-[#333] text-white' : 'bg-gray-50 border-gray-200'}">
+              </div>
+
+              <!-- Dosis Milimétrica de Riego -->
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-1">
+                  <span class="text-[#718096]">Dosis de Riego Calibrada</span>
+                  <span id="cfg-dosis-val" class="text-[#2ECC71] font-bold">${plant.dosis_riego_ml} ml</span>
+                </div>
+                <input id="cfg-dosis" type="range" min="20" max="500" step="10" value="${plant.dosis_riego_ml}"
+                  oninput="document.getElementById('cfg-dosis-val').innerText = this.value + ' ml'"
+                  class="w-full accent-[#2ECC71]">
+              </div>
+
+              <!-- Umbral Mínimo Humedad -->
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-1">
+                  <span class="text-[#718096]">Humedad Mínima Óptima</span>
+                  <span id="cfg-hum-val" class="text-[#2B6CB0] font-bold">${plant.humedad_min}%</span>
+                </div>
+                <input id="cfg-hum-min" type="range" min="10" max="80" step="1" value="${plant.humedad_min}"
+                  oninput="document.getElementById('cfg-hum-val').innerText = this.value + '%'"
+                  class="w-full accent-[#2B6CB0]">
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-[#718096] mb-1">Temp Máxima Tolerada (°C)</label>
+                  <input id="cfg-temp-max" type="number" step="0.5" value="${plant.temp_max}" required
+                    class="w-full px-3.5 py-2 rounded-xl text-xs border ${isOled ? 'bg-[#222] border-[#333] text-white' : 'bg-gray-50 border-gray-200'}">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-[#718096] mb-1">Temp Mínima (°C)</label>
+                  <input id="cfg-temp-min" type="number" step="0.5" value="${plant.temp_min}" required
+                    class="w-full px-3.5 py-2 rounded-xl text-xs border ${isOled ? 'bg-[#222] border-[#333] text-white' : 'bg-gray-50 border-gray-200'}">
+                </div>
+              </div>
+
+              <button type="submit"
+                class="w-full py-3 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md mt-4">
+                Vincular a Maceta y Guardar en Flota
+              </button>
+            </form>
+
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    function closePlantModal() {
+      const container = document.getElementById('plant-modal-container');
+      if (container) container.innerHTML = '';
+      state.selectedPlantForConfig = null;
+    }
+
+    // Inicialización al cargar la página
+    window.addEventListener('DOMContentLoaded', () => {
+      // Detección de parámetros de activación de cuenta por correo en la URL
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('activated') === 'true') {
+        const user = urlParams.get('user') || '';
+        state.activationNotice = {
+          type: 'success',
+          user: user
+        };
+        state.authMode = 'login';
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (urlParams.get('activation_error')) {
+        state.activationNotice = {
+          type: 'error'
+        };
+        state.authMode = 'login';
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      render();
+      if (state.token) {
+        initDashboardData();
+      }
+    });
+  </script>
+
+</body>
+</html>

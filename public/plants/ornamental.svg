@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#fbe7ef"/>
+  <circle cx="400" cy="210" r="115" fill="#f59aba"/>
+  <circle cx="310" cy="260" r="78" fill="#f7b7cb"/>
+  <circle cx="490" cy="260" r="78" fill="#ef83ad"/>
+  <path d="M400 300v170M400 390c-90-45-135-5-160 45M400 375c90-55 145-10 175 40" fill="none" stroke="#367957" stroke-width="24" stroke-linecap="round"/>
+  <path d="M270 475h260l-32 80H302z" fill="#c87958"/>
+  <text x="400" y="70" text-anchor="middle" font-family="Arial" font-size="34" fill="#61354a">Flores ornamentales</text>
+</svg>
