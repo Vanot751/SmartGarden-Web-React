@@ -124,6 +124,8 @@
       operator: localStorage.getItem('operator_user') || 'Operador',
       telemetry: null,
       telemetryByModule: {},
+      telemetryHistoryByModule: {},
+      chartTheme: null,
       isSyncingSimulation: false,
       lastLocalSimEdit: 0,
       historyRange: '24h',
@@ -530,6 +532,35 @@
       updateSimulatorDOM();
     }
 
+    function formatLogAsHistoryPoint(item) {
+      const parsed = parseTelemetryItem(item);
+      const dt = new Date(parsed.timestamp);
+      const label = !isNaN(dt.getTime())
+        ? dt.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        : ' Reciente';
+      return {
+        id: item.id || parsed.timestamp,
+        timestamp: parsed.timestamp,
+        label,
+        temperatura: Number(parsed.sensores.temperatura.toFixed(1)),
+        humedadSuelo: Number(parsed.sensores.humedadSuelo.toFixed(1)),
+        luzSolar: Number(parsed.sensores.luzSolar.toFixed(1))
+      };
+    }
+
+    function appendModuleHistoryLog(moduleId, item) {
+      if (!moduleId || !item) return;
+      const key = String(moduleId);
+      const point = formatLogAsHistoryPoint(item);
+      const list = Array.isArray(state.telemetryHistoryByModule[key])
+        ? [...state.telemetryHistoryByModule[key]]
+        : [];
+      if (!list.some((existing) => String(existing.id) === String(point.id))) {
+        list.push(point);
+      }
+      state.telemetryHistoryByModule[key] = list.slice(-18);
+    }
+
     async function fetchTelemetry(showLoading = false) {
       if (!state.token) return;
       try {
@@ -545,22 +576,39 @@
         // Soporte inteligente para la telemetría paginada del backend { count, results: [...] }
         if (data && data.results && Array.isArray(data.results)) {
           const seenModules = new Set();
+          const groupedLogs = {};
+
           for (const item of data.results) {
-            if (item && item.module && !seenModules.has(String(item.module))) {
-              seenModules.add(String(item.module));
-              state.telemetryByModule[String(item.module)] = parseTelemetryItem(item, prevActuators);
+            if (!item || !item.module) continue;
+            const modKey = String(item.module);
+            if (!seenModules.has(modKey)) {
+              seenModules.add(modKey);
+              state.telemetryByModule[modKey] = parseTelemetryItem(item, prevActuators);
             }
+            if (!groupedLogs[modKey]) groupedLogs[modKey] = [];
+            groupedLogs[modKey].push(item);
           }
+
+          Object.entries(groupedLogs).forEach(([modKey, items]) => {
+            state.telemetryHistoryByModule[modKey] = items
+              .slice(0, 18)
+              .reverse()
+              .map(formatLogAsHistoryPoint);
+          });
 
           const selectedPlant = getSelectedPlant();
           const selectedModId = getPlantModuleId(selectedPlant);
 
-          if (selectedModId && !state.telemetryByModule[String(selectedModId)]) {
+          if (selectedModId && (!state.telemetryByModule[String(selectedModId)] || (state.telemetryHistoryByModule[String(selectedModId)]?.length || 0) < 3)) {
             try {
               const modRes = await api.get(`/api/telemetry/?module=${selectedModId}`, { skipLoading: true });
               const modResults = modRes.data?.results || (Array.isArray(modRes.data) ? modRes.data : []);
               if (modResults.length > 0) {
                 state.telemetryByModule[String(selectedModId)] = parseTelemetryItem(modResults[0], prevActuators);
+                state.telemetryHistoryByModule[String(selectedModId)] = modResults
+                  .slice(0, 18)
+                  .reverse()
+                  .map(formatLogAsHistoryPoint);
               }
             } catch (modErr) {
               console.warn('Error consultando telemetría específica del módulo', modErr);
@@ -586,6 +634,7 @@
         syncSimulatorWithActiveTelemetry();
         updateSoilColor(getEffectiveTelemetry()?.sensores?.humedadSuelo || 50);
         updateTelemetryCardsDOM();
+        renderChart();
       } catch (err) {
         console.warn('Error telemetría', err);
       }
@@ -596,11 +645,12 @@
       state.historyRange = range;
       updateHistoryRangeControlsDOM();
       try {
-        const res = await api.get(`/api/telemetry/history/?range=${range}`);
+        const res = await api.get(`/api/telemetry/history/?range=${range}`, { skipLoading: true });
         state.historyData = res.data;
         renderChart();
       } catch (err) {
         console.warn('Error cargando historial desde /api/telemetry/', err);
+        renderChart();
       }
     }
 
@@ -833,6 +883,7 @@
       updateTelemetryCardsDOM();
       renderFleetGridDOM();
       updateTwinDOM();
+      renderChart();
       fetchTelemetry(false);
     }
 
@@ -942,9 +993,12 @@
           luz: Number(Number(state.simulation.luzSolar ?? 78).toFixed(2))
         };
 
-        await api.post(`/api/modules/${moduleId}/telemetry/`, payload, { skipLoading: true });
+        const createdRes = await api.post(`/api/modules/${moduleId}/telemetry/`, payload, { skipLoading: true });
+        if (createdRes?.data) {
+          appendModuleHistoryLog(moduleId, createdRes.data);
+        }
         state.lastUpdated = new Date().toLocaleTimeString();
-        fetchHistory(state.historyRange);
+        renderChart();
       } catch (err) {
         console.warn('No se pudo registrar la telemetría simulada en el backend:', err);
       } finally {
@@ -978,6 +1032,7 @@
       updateTelemetryCardsDOM();
       updateTwinDOM();
       renderFleetGridDOM();
+      renderChart();
       scheduleSimulationSync(false);
     }
 
@@ -1008,6 +1063,7 @@
       updateTelemetryCardsDOM();
       updateTwinDOM();
       renderFleetGridDOM();
+      renderChart();
       scheduleSimulationSync(true);
     }
 
@@ -1506,9 +1562,81 @@
     // ==========================================
     // GRÁFICOS AVANZADOS (CHART.JS + UMBRALES)
     // ==========================================
+    function buildChartSeries() {
+      const selectedPlant = getSelectedPlant();
+      const maxTemp = Number(selectedPlant?.temp_max ?? 35.0);
+      const minHum = Number(selectedPlant?.humedad_min ?? selectedPlant?.humedad_optima ?? 30.0);
+      const modId = getPlantModuleId(selectedPlant) || state.telemetry?.moduleId || state.simulationModuleId;
+      const moduleLogs = (modId && Array.isArray(state.telemetryHistoryByModule[String(modId)]))
+        ? state.telemetryHistoryByModule[String(modId)]
+        : [];
+      const basePoints = Array.isArray(state.historyData?.historial) ? state.historyData.historial : [];
+      const effSensors = getEffectiveTelemetry()?.sensores || {
+        temperatura: 26.4,
+        humedadSuelo: 52,
+        luzSolar: 78
+      };
+
+      const livePoint = {
+        label: 'Ahora',
+        temperatura: Number(Number(effSensors.temperatura ?? 26.4).toFixed(1)),
+        humedadSuelo: Number(Number(effSensors.humedadSuelo ?? 52).toFixed(1)),
+        luzSolar: Number(Number(effSensors.luzSolar ?? 78).toFixed(1))
+      };
+
+      let combined = [];
+      if (state.historyRange === '7d') {
+        const prefix = basePoints.length > 1 ? basePoints.slice(0, -1) : basePoints;
+        combined = [...prefix, ...moduleLogs.slice(-5), livePoint];
+      } else {
+        const keepBaseCount = Math.max(0, 16 - moduleLogs.length);
+        const prefix = keepBaseCount > 0 && basePoints.length > 1
+          ? basePoints.slice(Math.max(0, basePoints.length - 1 - keepBaseCount), -1)
+          : [];
+        combined = [...prefix, ...moduleLogs, livePoint];
+      }
+
+      return {
+        labels: combined.map((p) => p.label),
+        temps: combined.map((p) => p.temperatura),
+        hums: combined.map((p) => p.humedadSuelo),
+        lights: combined.map((p) => p.luzSolar),
+        maxTemp,
+        minHum
+      };
+    }
+
     function renderChart() {
       const canvas = document.getElementById('historyChart');
-      if (!canvas || !state.historyData) return;
+      if (!canvas) return;
+
+      const { labels, temps, hums, lights, maxTemp, minHum } = buildChartSeries();
+      if (labels.length === 0) return;
+
+      const footerMaxTemp = document.getElementById('chart-footer-max-temp');
+      const footerMinHum = document.getElementById('chart-footer-min-hum');
+      if (footerMaxTemp) footerMaxTemp.textContent = `Límite Térmico: ${maxTemp.toFixed(1)}°C`;
+      if (footerMinHum) footerMinHum.textContent = `Límite Hídrico: ${minHum.toFixed(1)}%`;
+
+      const maxTempLabel = `Umbral Máx Temp (${maxTemp}°C)`;
+      const minHumLabel = `Umbral Mín Humedad (${minHum}%)`;
+
+      if (
+        state.chartInstance &&
+        state.chartInstance.canvas === canvas &&
+        state.chartTheme === state.theme
+      ) {
+        state.chartInstance.data.labels = labels;
+        state.chartInstance.data.datasets[0].data = temps;
+        state.chartInstance.data.datasets[1].data = hums;
+        state.chartInstance.data.datasets[2].data = lights;
+        state.chartInstance.data.datasets[3].label = maxTempLabel;
+        state.chartInstance.data.datasets[3].data = labels.map(() => maxTemp);
+        state.chartInstance.data.datasets[4].label = minHumLabel;
+        state.chartInstance.data.datasets[4].data = labels.map(() => minHum);
+        state.chartInstance.update('none');
+        return;
+      }
 
       if (state.chartInstance) {
         state.chartInstance.destroy();
@@ -1520,11 +1648,7 @@
 
       // Forzar color global por defecto de Chart.js según el modo actual
       Chart.defaults.color = textColor;
-
-      const labels = state.historyData.historial.map(p => p.label);
-      const temps = state.historyData.historial.map(p => p.temperatura);
-      const hums = state.historyData.historial.map(p => p.humedadSuelo);
-      const lights = state.historyData.historial.map(p => p.luzSolar);
+      state.chartTheme = state.theme;
 
       const ctx = canvas.getContext('2d');
       state.chartInstance = new Chart(ctx, {
@@ -1539,7 +1663,7 @@
               backgroundColor: 'rgba(221, 107, 32, 0.08)',
               borderWidth: 2.5,
               tension: 0.35,
-              pointRadius: 2,
+              pointRadius: 2.5,
               pointHoverRadius: 6,
               yAxisID: 'y'
             },
@@ -1550,7 +1674,7 @@
               backgroundColor: 'rgba(43, 108, 176, 0.08)',
               borderWidth: 2.5,
               tension: 0.35,
-              pointRadius: 2,
+              pointRadius: 2.5,
               pointHoverRadius: 6,
               yAxisID: 'y'
             },
@@ -1565,10 +1689,10 @@
               pointRadius: 1,
               yAxisID: 'y'
             },
-            // Línea de Umbral Crítico Temperatura (35°C)
+            // Línea de Umbral Crítico Temperatura
             {
-              label: 'Umbral Máx Temp (35°C)',
-              data: labels.map(() => 35.0),
+              label: maxTempLabel,
+              data: labels.map(() => maxTemp),
               borderColor: '#E53E3E',
               backgroundColor: 'rgba(229, 62, 62, 0.12)',
               borderWidth: 2,
@@ -1577,10 +1701,10 @@
               fill: false,
               yAxisID: 'y'
             },
-            // Línea de Umbral Sequía Suelo (30%)
+            // Línea de Umbral Sequía Suelo
             {
-              label: 'Umbral Mín Humedad (30%)',
-              data: labels.map(() => 30.0),
+              label: minHumLabel,
+              data: labels.map(() => minHum),
               borderColor: '#3182CE',
               backgroundColor: 'rgba(49, 130, 206, 0.12)',
               borderWidth: 2,
@@ -2310,11 +2434,11 @@
                   <div class="flex items-center gap-4">
                     <span class="inline-flex items-center gap-1.5">
                       <span class="w-3 h-0.5 bg-[#E53E3E] inline-block"></span>
-                      <span>Límite Térmico: 35.0°C</span>
+                      <span id="chart-footer-max-temp">Límite Térmico: 35.0°C</span>
                     </span>
                     <span class="inline-flex items-center gap-1.5">
                       <span class="w-3 h-0.5 bg-[#3182CE] inline-block"></span>
-                      <span>Límite Hídrico: 30.0%</span>
+                      <span id="chart-footer-min-hum">Límite Hídrico: 30.0%</span>
                     </span>
                   </div>
                   <span class="hidden sm:inline">Persistencia activa en TelemetryLog</span>
