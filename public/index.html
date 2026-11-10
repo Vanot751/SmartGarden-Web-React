@@ -155,12 +155,21 @@
     // ==========================================
     // INSTANCIA AXIOS CON JWT Y PROTECCIÓN CSRF
     // ==========================================
+    const DEFAULT_PRODUCTION_API_URL = 'https://smart-garden-api-django.vercel.app';
+
     function normalizeApiBaseUrl(rawUrl) {
       if (!rawUrl || typeof rawUrl !== 'string') return '';
       return rawUrl.trim().replace(/\/+$/, '').replace(/\/api$/i, '');
     }
 
-    const API_BASE_URL = normalizeApiBaseUrl(window.__VITE_API_URL__ || '');
+    const rawConfiguredApiUrl =
+      typeof window.__VITE_API_URL__ === 'string' && window.__VITE_API_URL__.trim()
+        ? window.__VITE_API_URL__
+        : window.__USE_DEV_PROXY__
+          ? ''
+          : DEFAULT_PRODUCTION_API_URL;
+
+    const API_BASE_URL = normalizeApiBaseUrl(rawConfiguredApiUrl);
 
     axios.defaults.xsrfCookieName = 'csrftoken';
     axios.defaults.xsrfHeaderName = 'X-CSRFToken';
@@ -178,7 +187,7 @@
 
     function getApiLoadingMessage(config) {
       const url = config?.url || '';
-      if (url.includes('/auth/')) return 'Autenticando usuario...';
+      if (url.includes('/token/') || url.includes('/auth/')) return 'Autenticando usuario...';
       if (url.includes('/user-plants/')) return 'Guardando tu maceta...';
       if (url.includes('/modules/')) return 'Preparando el módulo...';
       if (url.includes('/plants/search/')) return 'Buscando especies botánicas...';
@@ -250,10 +259,49 @@
       return config;
     });
 
+    let refreshRequestPromise = null;
+
     api.interceptors.response.use(
       (res) => res,
-      (err) => {
-        if (err.response && err.response.status === 401) {
+      async (err) => {
+        const originalRequest = err.config || {};
+        const reqUrl = originalRequest.url || '';
+        const isAuthRoute =
+          reqUrl.includes('/api/token/') ||
+          reqUrl.includes('/api/auth/login/') ||
+          reqUrl.includes('/api/auth/register/');
+
+        if (err.response && err.response.status === 401 && !originalRequest._retry && !isAuthRoute) {
+          originalRequest._retry = true;
+          const storedRefresh = state.refreshToken || localStorage.getItem('refresh_token');
+
+          if (storedRefresh) {
+            try {
+              if (!refreshRequestPromise) {
+                refreshRequestPromise = axios
+                  .post('/api/token/refresh/', { refresh: storedRefresh }, { skipLoading: true })
+                  .finally(() => {
+                    refreshRequestPromise = null;
+                  });
+              }
+              const refreshRes = await refreshRequestPromise;
+              const newAccess = refreshRes.data?.access;
+              if (newAccess) {
+                state.token = newAccess;
+                localStorage.setItem('access_token', newAccess);
+                if (refreshRes.data?.refresh) {
+                  state.refreshToken = refreshRes.data.refresh;
+                  localStorage.setItem('refresh_token', refreshRes.data.refresh);
+                }
+                originalRequest.headers = originalRequest.headers || {};
+                originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+                return api(originalRequest);
+              }
+            } catch (refreshErr) {
+              console.warn('No se pudo renovar el token en /api/token/refresh/', refreshErr);
+            }
+          }
+
           logout();
         }
         return Promise.reject(err);
@@ -333,12 +381,12 @@
       try {
         let res;
         try {
-          // Intenta primero el endpoint del backend adaptado: /api/auth/login/
-          res = await axios.post('/api/auth/login/', { username, password });
+          // Ruta principal de autenticación SimpleJWT: POST /api/token/
+          res = await axios.post('/api/token/', { username, password });
         } catch (loginErr) {
           if (loginErr.response && loginErr.response.status === 404) {
-            // Fallback al endpoint estándar SimpleJWT: /api/token/
-            res = await axios.post('/api/token/', { username, password });
+            // Compatibilidad secundaria con /api/auth/login/
+            res = await axios.post('/api/auth/login/', { username, password });
           } else {
             throw loginErr;
           }
@@ -457,8 +505,23 @@
         initDashboardData();
       } catch (err) {
         console.error('Error registro', err);
-        const msg = err.response?.data?.error || err.response?.data?.detail || 'No se pudo crear la cuenta. Verifica que el usuario o correo no estén en uso.';
-        alert(msg);
+        let msg = '';
+        const status = err.response?.status;
+        const data = err.response?.data;
+
+        if (!err.response) {
+          msg = 'No fue posible conectar con el backend (error de red o CORS). Verifica VITE_API_URL y CORS_ALLOWED_ORIGINS.';
+        } else if (status === 404) {
+          msg = 'Error 404: El endpoint de registro (/api/auth/register/) no está habilitado en el backend Django.';
+        } else if (status >= 500) {
+          msg = data?.error || data?.detail || `Error interno del servidor (${status}) en el backend (posible fallo en envío de correo SMTP o base de datos).`;
+        } else if (data && typeof data === 'object') {
+          msg = data.error || data.detail || Object.entries(data)
+            .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+            .join('\n');
+        }
+
+        alert(msg || `No se pudo crear la cuenta (HTTP ${status || 'desconocido'}). Verifica que el usuario o correo no estén en uso.`);
       }
     }
 

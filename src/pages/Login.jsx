@@ -65,13 +65,42 @@ export default function Login() {
       return;
     }
 
+    if (isRegister) {
+      if (!email.trim()) {
+        setError('Por favor ingresa tu correo electrónico.');
+        return;
+      }
+      if (password !== passwordConfirm) {
+        setError('Las contraseñas no coinciden. Verifica la confirmación.');
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
-      const response = await api.post('/api/auth/login/', {
-        username: username.trim(),
-        password,
-      });
+      let response;
+      if (isRegister) {
+        response = await api.post('/api/auth/register/', {
+          username: username.trim(),
+          email: email.trim(),
+          password,
+          password_confirm: passwordConfirm,
+        });
+
+        if (response.data?.requires_activation) {
+          setActivationNotice({ type: 'pending', email: email.trim() });
+          setIsRegister(false);
+          setPassword('');
+          setPasswordConfirm('');
+          return;
+        }
+      } else {
+        response = await api.post('/api/token/', {
+          username: username.trim(),
+          password,
+        });
+      }
 
       const { access, refresh } = response.data;
 
@@ -363,7 +392,14 @@ export default function Login() {
                 </p>
               ) : (
                 <p className="text-xs text-[#718096]">
-                  Contacta al administrador para crear tu cuenta de operador.
+                  ¿Aún no tienes una cuenta?{' '}
+                  <button
+                    type="button"
+                    onClick={() => { setIsRegister(true); setError(null); }}
+                    className="text-[#2ECC71] hover:underline font-bold cursor-pointer inline-flex items-center"
+                  >
+                    Regístrate aquí
+                  </button>
                 </p>
               )}
             </div>
