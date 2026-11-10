@@ -1,6 +1,6 @@
 # SmartGarden Web — Cliente IoT Botánico (React + Vite)
 
-Aplicación web cliente desarrollada en **React + Vite**, **Axios**, **Three.js** y **Chart.js** que consume la API REST de **SmartGarden-API-Django** mediante autenticación **JWT (SimpleJWT)**.
+Aplicación web cliente desarrollada en **React + Vite**, **Tailwind CSS**, **Lucide Icons** y **Axios** que consume la API REST de **SmartGarden-API-Django** mediante autenticación **JWT (SimpleJWT)**.
 
 - **URL pública de la API REST (Backend):** `https://smart-garden-api-django.vercel.app`
 
@@ -15,10 +15,11 @@ Aplicación web cliente desarrollada en **React + Vite**, **Axios**, **Three.js*
    - Adjunta automáticamente `Authorization: Bearer <access_token>` en todas las peticiones protegidas mediante interceptores de Axios.
    - Renueva automáticamente el token de acceso expirado consumiendo `POST /api/token/refresh/` sin interrumpir la sesión del operador.
    - Permite registrar nuevos operadores mediante `POST /api/auth/register/`.
-2. **Visualización 3D y Analítica Histórica:**
-   - **Gemelo Digital 3D (`Three.js`):** Renderiza un modelo 3D interactivo de la planta que reacciona visualmente al estado hídrico, térmico y lumínico reportado por la API.
-   - **Gráfico Histórico y Umbrales (`Chart.js`):** Grafica las series temporales de `TelemetryLog` junto con los límites críticos de temperatura máxima y humedad mínima de cada especie.
-   - **Simulador IoT Sincronizado:** Permite inyectar lecturas de prueba hacia `POST /api/modules/<id>/telemetry/` y sincronizar el estado entre múltiples sesiones conectadas a la misma cuenta.
+2. **Supervisión Ambiental y Telemetría en Tiempo Real:**
+   - **Panel de Telemetría Dinámico:** Muestra lecturas en tiempo real de temperatura ambiente, humedad de suelo y luminosidad capturadas por los sensores IoT.
+   - **Gestión de Flota Botánica:** Permite alternar entre vistas de cuadrícula o lista de las plantas del usuario, visualizando umbrales óptimos por especie y estado ambiental.
+   - **Simulador IoT Sincronizado:** Permite inyectar lecturas de prueba hacia `POST /api/modules/<id>/telemetry/` y sincronizar el estado reactivo en la interfaz.
+   - **Panel de Control de Actuadores:** Controles de interfaz para emulación de bomba de riego, nebulizador, dosificación y parada de emergencia.
 
 ---
 
@@ -89,21 +90,21 @@ curl -i -X GET "https://smart-garden-api-django.vercel.app/api/user-plants/"
 ```bash
 curl -i -X POST "https://smart-garden-api-django.vercel.app/api/auth/register/" \
   -H "Content-Type: application/json" \
-  -d '{"username":"operador_demo","email":"operador_demo@inacap.cl","password":"Password123!","password_confirm":"Password123!"}'
+  -d "{\"username\":\"operador_demo\",\"email\":\"operador_demo@inacap.cl\",\"password\":\"Password123!\",\"password_confirm\":\"Password123!\"}"
 ```
 
 ### 3. Obtención de Token JWT (`POST /api/token/`)
 ```bash
 curl -i -X POST "https://smart-garden-api-django.vercel.app/api/token/" \
   -H "Content-Type: application/json" \
-  -d '{"username":"operador_demo","password":"Password123!"}'
+  -d "{\"username\":\"operador_demo\",\"password\":\"Password123!\"}"
 ```
 
 ### 4. Renovación de Token JWT (`POST /api/token/refresh/`)
 ```bash
 curl -i -X POST "https://smart-garden-api-django.vercel.app/api/token/refresh/" \
   -H "Content-Type: application/json" \
-  -d '{"refresh":"<PEGA_AQUI_TU_REFRESH_TOKEN>"}'
+  -d "{\"refresh\":\"<PEGA_AQUI_TU_REFRESH_TOKEN>\"}"
 ```
 
 ### 5. Consulta de recursos protegidos con `Bearer Token` (`GET /api/modules/` y `GET /api/telemetry/`)
@@ -114,5 +115,3 @@ curl -i -X GET "https://smart-garden-api-django.vercel.app/api/modules/" \
 curl -i -X GET "https://smart-garden-api-django.vercel.app/api/telemetry/" \
   -H "Authorization: Bearer <PEGA_AQUI_TU_ACCESS_TOKEN>"
 ```
-
-
