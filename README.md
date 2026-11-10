@@ -42,6 +42,12 @@ La URL base del backend se configura mediante la variable pública:
 ```env
 VITE_API_URL=https://smart-garden-api-django.vercel.app
 ```
+URLs públicas:
+
+```text
+Backend:  https://smart-garden-api-django.vercel.app/
+Frontend: https://smart-garden-web-react.vercel.app/
+```
 
 ### Separación por entorno en Vercel
 
