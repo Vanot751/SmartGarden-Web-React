@@ -84,6 +84,16 @@
     @keyframes api-loading-spin {
       to { transform: rotate(360deg); }
     }
+
+    /* Giro único y controlado para el botón de refresco */
+    @keyframes spinSingleTurn {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .spin-once {
+      animation: spinSingleTurn 0.75s cubic-bezier(0.25, 1, 0.5, 1) 1 forwards !important;
+      transform-origin: center;
+    }
     
     /* Scrollbar estilizada */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -205,14 +215,47 @@
     let apiLoadingTimer = null;
     let apiLoadingVisible = false;
 
+    // Determina si una petición es interactiva y realmente requiere mostrar el banner flotante de carga
+    function shouldShowApiLoading(config) {
+      if (config?.skipLoading) return false;
+      const url = config?.url || '';
+      const method = (config?.method || 'get').toLowerCase();
+
+      // Telemetría e historial: SIEMPRE silenciosos en segundo plano (nunca mostrar banner)
+      if (url.includes('/telemetry')) return false;
+
+      // Lecturas pasivas de datos iniciales en segundo plano (cargar flota de macetas o módulos)
+      if (method === 'get' && (url.includes('/user-plants/') || url.includes('/modules/'))) {
+        return false;
+      }
+
+      // 1. Búsqueda botánica (explícitamente interactiva y solicitada por el usuario)
+      if (url.includes('/plants/search/')) return true;
+
+      // 2. Autenticación y registro de sesión
+      if (url.includes('/token/') || url.includes('/auth/') || url.includes('/register/')) return true;
+
+      // 3. Modificaciones intencionales de macetas (crear, guardar, calibrar, eliminar)
+      if (url.includes('/user-plants/') && ['post', 'put', 'patch', 'delete'].includes(method)) return true;
+
+      // 4. Comandos manuales de actuadores (bomba de agua, nebulizador, etc.)
+      if (url.includes('/actuators/') && ['post', 'put', 'patch'].includes(method)) return true;
+
+      return false;
+    }
+
     function getApiLoadingMessage(config) {
       const url = config?.url || '';
-      if (url.includes('/token/') || url.includes('/auth/')) return 'Autenticando usuario...';
-      if (url.includes('/user-plants/')) return 'Guardando tu maceta...';
-      if (url.includes('/modules/')) return 'Preparando el módulo...';
+      const method = (config?.method || 'get').toLowerCase();
       if (url.includes('/plants/search/')) return 'Buscando especies botánicas...';
-      if (url.includes('/telemetry')) return 'Actualizando telemetría...';
-      return 'Sincronizando con la API...';
+      if (url.includes('/token/') || url.includes('/auth/')) return 'Autenticando usuario...';
+      if (url.includes('/register/')) return 'Registrando cuenta...';
+      if (url.includes('/user-plants/')) {
+        return method === 'delete' ? 'Eliminando maceta de la flota...' : 'Guardando tu maceta...';
+      }
+      if (url.includes('/actuators/')) return 'Enviando comando a actuadores...';
+      if (url.includes('/modules/')) return 'Configurando módulo...';
+      return 'Procesando solicitud...';
     }
 
     function showApiLoading(config) {
@@ -248,21 +291,25 @@
     function addApiLoadingInterceptors(client) {
       client.interceptors.request.use(
         (config) => {
-          if (!config.skipLoading) showApiLoading(config);
+          if (shouldShowApiLoading(config)) {
+            showApiLoading(config);
+          } else {
+            config._suppressLoading = true;
+          }
           return config;
         },
         (error) => {
-          if (!error.config?.skipLoading) hideApiLoading();
+          if (!error.config?._suppressLoading) hideApiLoading();
           return Promise.reject(error);
         }
       );
       client.interceptors.response.use(
         (response) => {
-          if (!response.config?.skipLoading) hideApiLoading();
+          if (!response.config?._suppressLoading) hideApiLoading();
           return response;
         },
         (error) => {
-          if (!error.config?.skipLoading) hideApiLoading();
+          if (!error.config?._suppressLoading) hideApiLoading();
           return Promise.reject(error);
         }
       );
@@ -655,7 +702,7 @@
     async function fetchTelemetry(showLoading = false) {
       if (!state.token) return;
       try {
-        const res = await api.get('/api/telemetry/', { skipLoading: !showLoading });
+        const res = await api.get('/api/telemetry/', { skipLoading: true });
         let data = res.data;
         const prevActuators = state.telemetry?.actuadores || {
           bombaAgua: false,
@@ -1168,7 +1215,7 @@
       state.simulation.active = false;
       localStorage.removeItem('smartgarden_plant_simulations');
       updateSimulatorDOM();
-      fetchTelemetry(true);
+      fetchTelemetry(false);
       fetchHistory(state.historyRange);
     }
 
@@ -1360,7 +1407,7 @@
 
     function initDashboardData() {
       fetchUserPlants();
-      fetchTelemetry(true);
+      fetchTelemetry(false);
       fetchHistory('24h');
       state.searchResults = [];
       state.searchQuery = '';
@@ -2163,10 +2210,15 @@
               </div>
 
               <!-- Refrescar -->
-              <button onclick="fetchTelemetry(true)" aria-label="Actualizar telemetría" title="Refrescar telemetría" class="p-2.5 rounded-xl border cursor-pointer ${
+              <button id="manual-refresh-btn" type="button" onclick="handleManualTelemetryRefresh(this)" aria-label="Actualizar telemetría" title="Refrescar telemetría" class="p-2.5 rounded-xl border cursor-pointer ${
                 isOled ? 'bg-[#1A1A1A] border-[#333333] text-[#A0A0A0]' : 'bg-white border-[#E2E8F0] text-[#718096]'
               }">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                <svg id="manual-refresh-icon" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                  <path d="M21 3v5h-5"/>
+                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                  <path d="M8 16H3v5"/>
+                </svg>
               </button>
 
               <!-- Operador y Logout -->
@@ -3092,6 +3144,30 @@
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         setTimeout(() => document.querySelector('#plant-search-input')?.focus(), 450);
+      }
+    }
+
+    let isManualRefreshing = false;
+    async function handleManualTelemetryRefresh(btn) {
+      if (isManualRefreshing) return;
+      isManualRefreshing = true;
+
+      const icon = document.getElementById('manual-refresh-icon');
+      if (icon) {
+        icon.classList.remove('spin-once');
+        void icon.offsetWidth;
+        icon.classList.add('spin-once');
+      }
+      try {
+        await fetchTelemetry(false);
+        await fetchHistory(state.historyRange);
+      } catch (err) {
+        console.warn('Error al refrescar telemetría manual', err);
+      } finally {
+        setTimeout(() => {
+          if (icon) icon.classList.remove('spin-once');
+          isManualRefreshing = false;
+        }, 800);
       }
     }
 

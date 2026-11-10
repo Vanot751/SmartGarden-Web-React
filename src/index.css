@@ -31,3 +31,13 @@ input {
   animation: fleetCardEnter 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
   will-change: transform, opacity;
 }
+
+@keyframes spinSingleTurn {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spin-once {
+  animation: spinSingleTurn 0.75s cubic-bezier(0.25, 1, 0.5, 1) 1 forwards !important;
+  transform-origin: center;
+}

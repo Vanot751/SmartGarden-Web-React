@@ -28,7 +28,7 @@ export default function Dashboard() {
 
   const [telemetry, setTelemetry] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [isSpinning, setIsSpinning] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [userPlants, setUserPlants] = useState([]);
@@ -50,87 +50,92 @@ export default function Dashboard() {
   };
 
   // Consulta GET a /api/telemetry/ con Bearer Token
-  const fetchTelemetry = useCallback(async (isManual = false) => {
-    if (isManual) setRefreshing(true);
+  const fetchTelemetry = useCallback(async () => {
     setError(null);
 
     try {
       const response = await api.get('/api/telemetry/');
       const rawData = response.data;
-      let parsed = rawData;
 
-      // Soporte inteligente para la telemetría paginada del backend { count, results: [...] }
-      if (rawData && rawData.results && Array.isArray(rawData.results)) {
-        const latest = rawData.results[0] || {};
-        const prevActuators = telemetry?.actuadores || {
+      setTelemetry((prevTelemetry) => {
+        let parsed = rawData;
+        const prevActuators = prevTelemetry?.actuadores || {
           bombaAgua: false,
           nebulizador: false,
           dosisRiegoMl: 100,
           paradaEmergencia: false,
         };
 
-        const tempVal = typeof latest.temperatura === 'number' ? latest.temperatura : 26.4;
-        const humVal = typeof latest.humedad === 'number' ? latest.humedad : (typeof latest.humedadSuelo === 'number' ? latest.humedadSuelo : 52.0);
-        const rawLuzVal = typeof latest.luz === 'number' ? latest.luz : (typeof latest.luzSolar === 'number' ? latest.luzSolar : 78.0);
-        const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
+        // Soporte inteligente para la telemetría paginada del backend { count, results: [...] }
+        if (rawData && rawData.results && Array.isArray(rawData.results)) {
+          const latest = rawData.results[0] || {};
+          const tempVal = typeof latest.temperatura === 'number' ? latest.temperatura : 26.4;
+          const humVal = typeof latest.humedad === 'number' ? latest.humedad : (typeof latest.humedadSuelo === 'number' ? latest.humedadSuelo : 52.0);
+          const rawLuzVal = typeof latest.luz === 'number' ? latest.luz : (typeof latest.luzSolar === 'number' ? latest.luzSolar : 78.0);
+          const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
 
-        parsed = {
-          nodo: latest.module ? `Módulo IoT #${latest.module}` : 'nodo_central_01',
-          moduleId: latest.module || 1,
-          sensores: {
-            temperatura: tempVal,
-            humedadSuelo: humVal,
-            luzSolar: luzVal,
-          },
-          actuadores: prevActuators,
-          timestamp: latest.timestamp || new Date().toISOString(),
-          rawResults: rawData.results,
-        };
-      } else if (rawData && typeof rawData.temperatura === 'number' && !rawData.sensores) {
-        // Objeto plano de telemetría
-        const tempVal = rawData.temperatura;
-        const humVal = typeof rawData.humedad === 'number' ? rawData.humedad : (rawData.humedadSuelo || 52.0);
-        const rawLuzVal = typeof rawData.luz === 'number' ? rawData.luz : (rawData.luzSolar || 78.0);
-        const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
+          parsed = {
+            nodo: latest.module ? `Módulo IoT #${latest.module}` : 'nodo_central_01',
+            moduleId: latest.module || 1,
+            sensores: {
+              temperatura: tempVal,
+              humedadSuelo: humVal,
+              luzSolar: luzVal,
+            },
+            actuadores: prevActuators,
+            timestamp: latest.timestamp || new Date().toISOString(),
+            rawResults: rawData.results,
+          };
+        } else if (rawData && typeof rawData.temperatura === 'number' && !rawData.sensores) {
+          // Objeto plano de telemetría
+          const tempVal = rawData.temperatura;
+          const humVal = typeof rawData.humedad === 'number' ? rawData.humedad : (rawData.humedadSuelo || 52.0);
+          const rawLuzVal = typeof rawData.luz === 'number' ? rawData.luz : (rawData.luzSolar || 78.0);
+          const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
 
-        parsed = {
-          nodo: rawData.module ? `Módulo IoT #${rawData.module}` : 'nodo_central_01',
-          sensores: {
-            temperatura: tempVal,
-            humedadSuelo: humVal,
-            luzSolar: luzVal,
-          },
-          actuadores: telemetry?.actuadores || {
-            bombaAgua: false,
-            nebulizador: false,
-            dosisRiegoMl: 100,
-            paradaEmergencia: false,
-          },
-          timestamp: rawData.timestamp || new Date().toISOString(),
-        };
-      }
+          parsed = {
+            nodo: rawData.module ? `Módulo IoT #${rawData.module}` : 'nodo_central_01',
+            sensores: {
+              temperatura: tempVal,
+              humedadSuelo: humVal,
+              luzSolar: luzVal,
+            },
+            actuadores: prevActuators,
+            timestamp: rawData.timestamp || new Date().toISOString(),
+          };
+        }
+        return parsed;
+      });
 
-      setTelemetry(parsed);
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
       console.warn('[SmartGarden API Sync Fallback]', err);
       if (err.response && err.response.status !== 401) {
         setError(`Error del servidor (${err.response.status}) al obtener telemetría.`);
       } else if (!err.response) {
-        // En desarrollo local o antes de levantar el backend, establecemos valores iniciales
-        if (!telemetry) {
-          setTelemetry({
+        setTelemetry((prev) => {
+          if (prev) return prev;
+          return {
             sensores: { temperatura: 26.4, humedadSuelo: 52, luzSolar: 78 },
             actuadores: { bombaAgua: false, nebulizador: false, dosisRiegoMl: 100, paradaEmergencia: false }
-          });
-          setLastUpdated(new Date().toLocaleTimeString());
-        }
+          };
+        });
+        setLastUpdated(new Date().toLocaleTimeString());
       }
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, [telemetry]);
+  }, []);
+
+  const handleManualRefresh = async () => {
+    if (isSpinning) return;
+    setIsSpinning(true);
+    try {
+      await fetchTelemetry();
+    } finally {
+      setTimeout(() => setIsSpinning(false), 800);
+    }
+  };
 
   const fetchUserPlants = useCallback(async () => {
     try {
@@ -306,17 +311,17 @@ export default function Dashboard() {
 
             {/* Refrescar */}
             <button
-              onClick={() => fetchTelemetry(true)}
-              disabled={refreshing || loading}
+              onClick={handleManualRefresh}
+              disabled={isSpinning}
               aria-label="Actualizar telemetría"
               title="Refrescar telemetría"
-              className={`p-2 rounded-xl border transition-colors cursor-pointer disabled:opacity-50 ${
+              className={`p-2 rounded-xl border transition-colors cursor-pointer disabled:opacity-75 ${
                 isOled 
                   ? 'bg-[#1A1A1A] border-[#333333] text-[#A0A0A0] hover:text-white' 
                   : 'bg-white border-[#E2E8F0] text-[#718096] hover:text-[#2D3748]'
               }`}
             >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-[#2ECC71]' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isSpinning ? 'spin-once text-[#2ECC71]' : ''}`} />
             </button>
 
             {/* Operador y Logout */}
