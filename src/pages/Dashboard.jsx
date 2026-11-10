@@ -13,7 +13,10 @@ import {
   Layers, 
   CheckCircle2, 
   Loader2,
-  Trash2 
+  Trash2,
+  LayoutGrid,
+  List,
+  Droplet
 } from 'lucide-react';
 import api from '../api/axiosConfig';
 import { useTheme } from '../context/ThemeContext';
@@ -33,6 +36,18 @@ export default function Dashboard() {
     const saved = localStorage.getItem('smartgarden_selected_plant');
     return saved ? parseInt(saved, 10) : null;
   });
+  const [fleetViewMode, setFleetViewMode] = useState(() => {
+    return localStorage.getItem('smartgarden_fleet_view_mode') || 'full';
+  });
+  const [isAnimatingView, setIsAnimatingView] = useState(false);
+
+  const handleFleetViewModeChange = (mode) => {
+    if (fleetViewMode === mode) return;
+    setIsAnimatingView(true);
+    setFleetViewMode(mode);
+    localStorage.setItem('smartgarden_fleet_view_mode', mode);
+    setTimeout(() => setIsAnimatingView(false), 450);
+  };
 
   // Consulta GET a /api/telemetry/ con Bearer Token
   const fetchTelemetry = useCallback(async (isManual = false) => {
@@ -338,39 +353,31 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Resumen operativo */}
-        <section className={`${cardProfileBg} border rounded-3xl p-5 sm:p-6 shadow-xs`}>
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${mutedText}`}>
-                Centro de control
-              </p>
-              <h2 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Hola, {operator}
+        {/* Resumen operativo ultra-compacto */}
+        <section className={`${cardProfileBg} border rounded-2xl p-3.5 sm:p-4 shadow-xs`}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#2ECC71] inline-block animate-pulse" />
+              <h2 className="text-sm sm:text-base font-bold tracking-tight">
+                Hola, <span className="text-[#2ECC71]">{operator}</span>
               </h2>
-              <p className={`mt-1 text-xs sm:text-sm ${mutedText}`}>
-                Supervisa el estado de tu jardín y actúa cuando sea necesario.
-              </p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              <div className={`${isOled ? 'bg-[#1A1A1A] border-[#2D2D2D]' : 'bg-white border-[#E2E8F0]'} min-w-[120px] rounded-2xl border px-3 py-2.5`}>
-                <p className={`text-[10px] uppercase tracking-wider ${mutedText}`}>Nodo central</p>
-                <div className="mt-1 flex items-center gap-1.5 text-xs font-bold">
-                  <span className={`h-2 w-2 rounded-full ${isApiConnected ? 'bg-[#2ECC71] animate-pulse' : 'bg-[#E53E3E]'}`} />
-                  {isApiConnected ? 'Conectado' : 'Sin conexión'}
-                </div>
+            
+            {/* Cápsula Unificada de Estado */}
+            <div className={`inline-flex items-center divide-x divide-inherit rounded-xl border px-2.5 py-1 text-[11px] font-semibold ${
+              isOled ? 'bg-[#181818] border-[#2A2A2A] text-[#A0A0A0]' : 'bg-[#F9F8F5] border-[#E2E8F0] text-[#718096]'
+            }`}>
+              <div className="flex items-center gap-1.5 pr-2.5">
+                <span className={`h-1.5 w-1.5 rounded-full ${isApiConnected ? 'bg-[#2ECC71]' : 'bg-[#E53E3E]'}`} />
+                <span>{isApiConnected ? 'Conectado' : 'Sin conexión'}</span>
               </div>
-              <div className={`${isOled ? 'bg-[#1A1A1A] border-[#2D2D2D]' : 'bg-white border-[#E2E8F0]'} min-w-[120px] rounded-2xl border px-3 py-2.5`}>
-                <p className={`text-[10px] uppercase tracking-wider ${mutedText}`}>Perfil activo</p>
-                <p className="mt-1 truncate text-xs font-bold">{selectedProfile.name}</p>
+              <div className="flex items-center gap-1 px-2.5">
+                <Sprout className="w-3.5 h-3.5 text-[#2ECC71]" />
+                <span className="truncate">{selectedProfile.name}</span>
               </div>
-              <div className={`${isOled ? 'bg-[#1A1A1A] border-[#2D2D2D]' : 'bg-white border-[#E2E8F0]'} col-span-2 sm:col-span-1 min-w-[120px] rounded-2xl border px-3 py-2.5`}>
-                <p className={`text-[10px] uppercase tracking-wider ${mutedText}`}>Actuadores</p>
-                <p className="mt-1 text-xs font-bold">
-                  {isEmergencyActive
-                    ? 'Bloqueados'
-                    : `${Number(actuators.bombaAgua) + Number(actuators.nebulizador)} activos`}
-                </p>
+              <div className="flex items-center gap-1 pl-2.5">
+                <span className="text-[#E65100]">⚡</span>
+                <span>{isEmergencyActive ? 'Bloqueados' : `${Number(actuators.bombaAgua) + Number(actuators.nebulizador)} activos`}</span>
               </div>
             </div>
           </div>
@@ -417,70 +424,183 @@ export default function Dashboard() {
                 Macetas Registradas • Flota Botánica
               </h3>
             </div>
-            <span className="text-[11px] text-[#718096]">
-              {userPlants.length > 0 ? `${userPlants.length} macetas activas` : 'Umbrales de seguridad: Mín 30% H • Máx 35°C T'}
-            </span>
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Selector de Modo de Vista */}
+              <div className={`inline-flex items-center p-1 rounded-xl border ${isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-[#EAE8DF] border-[#D8DCCB]'}`}>
+                <button
+                  type="button"
+                  onClick={() => handleFleetViewModeChange('full')}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    fleetViewMode === 'full' ? 'bg-[#2ECC71] text-white shadow-xs' : 'text-[#718096] hover:text-inherit'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Completa</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFleetViewModeChange('compact')}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    fleetViewMode === 'compact' ? 'bg-[#2ECC71] text-white shadow-xs' : 'text-[#718096] hover:text-inherit'
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Compacta</span>
+                </button>
+              </div>
+              <span className="text-[11px] text-[#718096]">
+                {userPlants.length > 0 ? `${userPlants.length} macetas activas` : 'Umbrales de seguridad: Mín 30% H • Máx 35°C T'}
+              </span>
+            </div>
           </div>
 
           {userPlants.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {userPlants.map((plant) => {
+            <div className={`grid gap-3 transition-all duration-300 ease-out ${fleetViewMode === 'compact' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
+              {userPlants.map((plant, idx) => {
                 const isSelected = plant.id === selectedPlantId;
                 const health = getPlantHealth(plant);
+                const animDelay = Math.min(idx * 35, 280);
+
+                if (fleetViewMode === 'compact') {
+                  return (
+                    <div
+                      key={plant.id}
+                      style={isAnimatingView ? { animationDelay: `${animDelay}ms` } : undefined}
+                      onClick={() => {
+                        setSelectedPlantId(plant.id);
+                        localStorage.setItem('smartgarden_selected_plant', plant.id);
+                      }}
+                      className={`${isAnimatingView ? 'fleet-card-anim' : ''} p-3 rounded-2xl flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                        isSelected
+                          ? isOled
+                            ? 'border-2 border-[#2ECC71] shadow-md shadow-[#2ECC71]/20 ring-1 ring-[#2ECC71]/30'
+                            : 'border-2 border-[#15803D] shadow-md shadow-[#15803D]/25 ring-1 ring-[#15803D]/30'
+                          : `border border-inherit ${isOled ? 'hover:border-[#2ECC71]/50' : 'hover:border-[#15803D]/50'}`
+                      } ${
+                        isOled ? 'bg-[#181818]' : 'bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="relative w-11 h-11 shrink-0">
+                          {plant.imagen_url ? (
+                            <img
+                              src={plant.imagen_url}
+                              alt={plant.nombre || plant.apodo}
+                              className="w-full h-full rounded-xl object-cover ring-1 ring-black/10"
+                            />
+                          ) : (
+                            <div className="w-full h-full rounded-xl bg-[#2ECC71]/15 text-[#2ECC71] flex items-center justify-center font-bold text-lg">
+                              🪴
+                            </div>
+                          )}
+                          {isSelected && (
+                            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                              <span className={`relative inline-flex rounded-full h-3 w-3 ${isOled ? 'bg-[#2ECC71]' : 'bg-[#15803D]'} border-2 border-white dark:border-[#181818] shadow-sm`}></span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold truncate">{plant.nombre || plant.apodo || 'Maceta'}</p>
+                            {isSelected && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#2ECC71] text-white">Activa</span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-[#718096] truncate">{plant.especie || 'Cultivo activo'}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${health.badgeClass}`}>
+                              {health.label}
+                            </span>
+                            <span className="text-[10px] text-[#718096]">
+                              Mín: {plant.humedad_min || plant.humedad_optima || 30}% H
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeletePlant(e, plant.id, plant.nombre || plant.apodo)}
+                        title="Eliminar maceta"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-colors shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                }
+
+                // Vista Completa
                 return (
                   <div
                     key={plant.id}
+                    style={isAnimatingView ? { animationDelay: `${animDelay}ms` } : undefined}
                     onClick={() => {
                       setSelectedPlantId(plant.id);
                       localStorage.setItem('smartgarden_selected_plant', plant.id);
                     }}
-                    className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                    className={`${isAnimatingView ? 'fleet-card-anim' : ''} p-4 rounded-2xl flex flex-col justify-between gap-3 transition-all cursor-pointer ${
                       isSelected
-                        ? 'ring-2 ring-[#2ECC71] shadow-md border-[#2ECC71]/70'
-                        : 'hover:border-[#2ECC71]/40'
+                        ? isOled
+                          ? 'border-2 border-[#2ECC71] shadow-md shadow-[#2ECC71]/20 ring-1 ring-[#2ECC71]/30'
+                          : 'border-2 border-[#15803D] shadow-md shadow-[#15803D]/25 ring-1 ring-[#15803D]/30'
+                        : `border border-inherit ${isOled ? 'hover:border-[#2ECC71]/50' : 'hover:border-[#15803D]/50'}`
                     } ${
-                      isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-white border-[#E2E8F0]'
+                      isOled ? 'bg-[#181818]' : 'bg-white'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      {plant.imagen_url ? (
-                        <img
-                          src={plant.imagen_url}
-                          alt={plant.nombre || plant.apodo}
-                          className="w-11 h-11 rounded-xl object-cover shrink-0"
-                        />
-                      ) : (
-                        <div className="w-11 h-11 rounded-xl bg-[#2ECC71]/15 text-[#2ECC71] flex items-center justify-center font-bold text-lg shrink-0">
-                          🪴
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-xs font-bold truncate">{plant.nombre || plant.apodo || 'Maceta'}</p>
-                          {isSelected && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#2ECC71] text-white">Activa</span>
+                    <div>
+                      <div className="relative w-full mb-3">
+                        <div className="relative w-full h-36 rounded-xl overflow-hidden bg-gray-100">
+                          {plant.imagen_url ? (
+                            <img
+                              src={plant.imagen_url}
+                              alt={plant.nombre || plant.apodo}
+                              className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300 ease-out"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-[#2ECC71]/15 text-[#2ECC71] flex items-center justify-center font-bold text-2xl">
+                              🪴
+                            </div>
                           )}
+                          <div className="absolute top-2 right-2">
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeletePlant(e, plant.id, plant.nombre || plant.apodo)}
+                              title="Eliminar maceta"
+                              className="p-1.5 rounded-lg bg-black/60 text-white hover:bg-red-600 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-[10px] text-[#718096] truncate">{plant.especie || 'Cultivo activo'}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${health.badgeClass}`}>
-                            {health.label}
+                        {isSelected && (
+                          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center z-20 pointer-events-none" title="Activa en Gemelo 3D">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full ${isOled ? 'bg-[#2ECC71]' : 'bg-[#15803D]'} opacity-75"></span>
+                            <span className={`relative inline-flex rounded-full h-3.5 w-3.5 ${isOled ? 'bg-[#2ECC71]' : 'bg-[#15803D]'} border-2 border-white dark:border-[#181818] shadow-md`}></span>
                           </span>
-                          <span className="text-[10px] text-[#718096]">
-                            Mín: {plant.humedad_min || plant.humedad_optima || 30}% H
-                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="text-xs font-bold truncate">{plant.nombre || plant.apodo || 'Maceta'}</h4>
+                          <p className="text-[11px] text-[#718096] italic truncate">{plant.especie || 'Cultivo'}</p>
+                        </div>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${health.badgeClass}`}>
+                          {health.label}
+                        </span>
+                      </div>
+                      <div className={`mt-2.5 pt-2 border-t ${isSelected ? 'border-[#2ECC71]/35' : 'border-inherit'} text-[11px] space-y-1`}>
+                        <div className="flex justify-between">
+                          <span className="text-[#718096]">Humedad Mínima:</span>
+                          <span className="font-bold text-[#2B6CB0]">{plant.humedad_min || 30}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#718096]">Límite Térmico:</span>
+                          <span className="font-bold text-[#DD6B20]">{plant.temp_max || 35}°C</span>
                         </div>
                       </div>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeletePlant(e, plant.id, plant.nombre || plant.apodo)}
-                      title="Eliminar maceta"
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-colors shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
                 );
               })}

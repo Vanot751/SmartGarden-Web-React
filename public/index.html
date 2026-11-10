@@ -90,6 +90,25 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #CBD5E0; border-radius: 9999px; }
     .dark ::-webkit-scrollbar-thumb { background: #333333; }
+
+    /* Animación fluida y en cascada al cambiar entre vista completa y compacta */
+    @keyframes fleetCardEnter {
+      0% {
+        opacity: 0;
+        transform: translateY(14px) scale(0.97);
+      }
+      60% {
+        opacity: 0.92;
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .fleet-card-anim {
+      animation: fleetCardEnter 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+      will-change: transform, opacity;
+    }
   </style>
 </head>
 <body class="pastel-canvas min-h-screen">
@@ -131,6 +150,7 @@
       historyRange: '24h',
       historyData: null,
       chartInstance: null,
+      fleetViewMode: localStorage.getItem('smartgarden_fleet_view_mode') || 'full',
       userPlants: [],
       selectedFleetPlantId: localStorage.getItem('smartgarden_selected_plant') ? parseInt(localStorage.getItem('smartgarden_selected_plant'), 10) : null,
       searchResults: [],
@@ -2165,65 +2185,61 @@
         <!-- Contenedor Principal del Panel Web -->
         <main class="max-w-7xl mx-auto px-4 sm:px-8 py-6 sm:py-7 space-y-6">
 
-          <!-- Resumen operativo -->
-          <section id="operational-summary" class="${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs">
-            <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[#718096]">Centro de control</p>
-                <h2 class="mt-1 text-xl sm:text-2xl font-extrabold tracking-tight">Hola, ${state.operator}</h2>
-                <p class="mt-1 text-xs sm:text-sm text-[#718096]">Supervisa el estado de tu jardín y actúa cuando sea necesario.</p>
-              </div>
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                <div class="${isOled ? 'bg-[#1A1A1A] border-[#2D2D2D]' : 'bg-white border-[#E2E8F0]'} min-w-[120px] rounded-2xl border px-3 py-2.5">
-                  <p class="text-[10px] uppercase tracking-wider text-[#718096]">Nodo central</p>
-                  <div class="mt-1 flex items-center gap-1.5 text-xs font-bold">
-                    <span id="header-node-dot" class="h-2 w-2 rounded-full ${apiDotClass}"></span>
-                    <span id="header-node-text">${isConnected ? 'Conectado' : 'Sincronizando'}</span>
+          <!-- Resumen operativo y Búsqueda Botánica Unificados (Ultra Compacto) -->
+          <section id="operational-summary" class="${cardBg} border rounded-2xl p-3.5 sm:p-4 shadow-xs">
+            <div id="botanical-search-section" class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              
+              <!-- Saludo y Métricas en Cápsula Inline Compacta -->
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-w-0">
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span class="w-2 h-2 rounded-full bg-[#2ECC71] inline-block animate-pulse"></span>
+                  <h2 class="text-sm sm:text-base font-bold tracking-tight">Hola, <span class="text-[#2ECC71]">${state.operator}</span></h2>
+                </div>
+
+                <!-- Cápsula Unificada de Estado: Nodo, Macetas y Actuadores -->
+                <div class="inline-flex items-center divide-x divide-inherit rounded-xl border px-2.5 py-1 text-[11px] font-semibold ${
+                  isOled ? 'bg-[#181818] border-[#2A2A2A] text-[#A0A0A0]' : 'bg-[#F9F8F5] border-[#E2E8F0] text-[#718096]'
+                }">
+                  <!-- Nodo Central -->
+                  <div class="flex items-center gap-1.5 pr-2.5">
+                    <span id="header-node-dot" class="h-1.5 w-1.5 rounded-full ${apiDotClass}"></span>
+                    <span id="header-node-text" class="text-inherit">${isConnected ? 'Conectado' : 'Sincronizando'}</span>
+                  </div>
+
+                  <!-- Macetas -->
+                  <div class="flex items-center gap-1 px-2.5">
+                    <i data-lucide="sprout" class="w-3.5 h-3.5 text-[#2ECC71]"></i>
+                    <span id="header-plants-count" class="text-inherit font-bold">${state.userPlants.length} registradas</span>
+                  </div>
+
+                  <!-- Actuadores -->
+                  <div class="flex items-center gap-1 pl-2.5">
+                    <i data-lucide="zap" class="w-3.5 h-3.5 text-[#E65100]"></i>
+                    <span id="header-actuators-count" class="text-inherit font-bold">${currentActuators.paradaEmergencia ? 'Bloqueados' : `${activeActuators} activos`}</span>
                   </div>
                 </div>
-                <div class="${isOled ? 'bg-[#1A1A1A] border-[#2D2D2D]' : 'bg-white border-[#E2E8F0]'} min-w-[120px] rounded-2xl border px-3 py-2.5">
-                  <p class="text-[10px] uppercase tracking-wider text-[#718096]">Macetas</p>
-                  <p id="header-plants-count" class="mt-1 text-xs font-bold">${state.userPlants.length} registradas</p>
+              </div>
+
+              <!-- Input de Búsqueda Botánica Integrado -->
+              <div class="relative w-full md:w-80 lg:w-96 shrink-0">
+                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <i data-lucide="search" class="w-4 h-4 text-[#2ECC71]"></i>
                 </div>
-                <div class="${isOled ? 'bg-[#1A1A1A] border-[#2D2D2D]' : 'bg-white border-[#E2E8F0]'} col-span-2 sm:col-span-1 min-w-[120px] rounded-2xl border px-3 py-2.5">
-                  <p class="text-[10px] uppercase tracking-wider text-[#718096]">Actuadores</p>
-                  <p id="header-actuators-count" class="mt-1 text-xs font-bold">${currentActuators.paradaEmergencia ? 'Bloqueados' : `${activeActuators} activos`}</p>
-                </div>
+                <input
+                  id="plant-search-input"
+                  type="text"
+                  placeholder="Buscar especie para añadir (monstera, menta)..."
+                  oninput="handleSearchInput(event)"
+                  class="w-full pl-10 pr-4 py-2 rounded-xl text-xs border transition-all focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 ${
+                    isOled ? 'bg-[#181818] border-[#2A2A2A] text-white placeholder-[#888888]' : 'bg-white border-[#E2E8F0] text-[#2D3748] placeholder-[#94A3B8]'
+                  }"
+                >
               </div>
             </div>
-            <div id="botanical-search-section" class="mt-5 pt-5 border-t border-inherit">
-              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <div class="flex items-center gap-2">
-                    <i data-lucide="search" class="w-5 h-5 text-[#2ECC71]"></i>
-                    <h2 class="text-base font-bold tracking-tight">Motor de Búsqueda Botánica (Free Plant API)</h2>
-                  </div>
-                  <p class="text-xs text-[#718096] mt-0.5">
-                    Pasa el cursor sobre la foto para verla completa. Calibra parámetros antes de registrar en tu flota.
-                  </p>
-                </div>
 
-                <!-- Input de Búsqueda Asíncrona -->
-                <div class="relative w-full sm:w-80">
-                  <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0AEC0]">
-                    <i data-lucide="search" class="w-4 h-4"></i>
-                  </div>
-                  <input
-                    id="plant-search-input"
-                    type="text"
-                    placeholder="Buscar especie (ej. monstera, ficus, albahaca, lavanda)..."
-                    oninput="handleSearchInput(event)"
-                    class="w-full pl-10 pr-4 py-2.5 rounded-2xl text-xs border transition-all focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 ${
-                      isOled ? 'bg-[#181818] border-[#2A2A2A] text-white placeholder-[#666]' : 'bg-white border-[#E2E8F0] text-[#2D3748] placeholder-[#A0AEC0]'
-                    }"
-                  >
-                </div>
-              </div>
-
-              <!-- Contenedor de Resultados con Skeletons -->
-              <div id="search-results-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                <!-- Se puebla dinámicamente con renderSearchResultsDOM() -->
-              </div>
+            <!-- Contenedor de Resultados con Skeletons (solo visible cuando se busca) -->
+            <div id="search-results-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-3 empty:hidden">
+              <!-- Se puebla dinámicamente con renderSearchResultsDOM() -->
             </div>
           </section>
           
@@ -2239,14 +2255,31 @@
                   <p class="text-xs text-[#718096]">Supervisión panorámica (Haz clic en una maceta para verla en el Gemelo Digital 3D)</p>
                 </div>
               </div>
-              <button onclick="scrollToSearch()" class="px-3.5 py-2 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs">
-                <i data-lucide="plus" class="w-4 h-4"></i>
-                <span>Añadir Maceta Botánica</span>
-              </button>
+              <div class="flex items-center gap-2 flex-wrap">
+                <!-- Selector de Modo de Vista: Completa vs Compacta -->
+                <div class="inline-flex items-center p-1 rounded-xl border border-inherit ${isOled ? 'bg-[#181818]' : 'bg-[#EAE8DF]'}">
+                  <button id="fleet-view-full-btn" type="button" onclick="setFleetViewMode('full')" class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    state.fleetViewMode === 'full' ? 'bg-[#2ECC71] text-white shadow-xs' : 'text-[#718096] hover:text-inherit'
+                  }">
+                    <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+                    <span>Vista Completa</span>
+                  </button>
+                  <button id="fleet-view-compact-btn" type="button" onclick="setFleetViewMode('compact')" class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    state.fleetViewMode === 'compact' ? 'bg-[#2ECC71] text-white shadow-xs' : 'text-[#718096] hover:text-inherit'
+                  }">
+                    <i data-lucide="list" class="w-3.5 h-3.5"></i>
+                    <span>Vista Compacta</span>
+                  </button>
+                </div>
+                <button onclick="scrollToSearch()" class="px-3.5 py-2 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs">
+                  <i data-lucide="plus" class="w-4 h-4"></i>
+                  <span>Añadir Maceta Botánica</span>
+                </button>
+              </div>
             </div>
 
             <!-- Grid de Macetas -->
-            <div id="fleet-grid-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div id="fleet-grid-container" class="${state.fleetViewMode === 'compact' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'}">
               <!-- Se puebla dinámicamente con renderFleetGridDOM() -->
             </div>
           </section>
@@ -2518,7 +2551,7 @@
                 </div>
 
                 <!-- Canvas del Gráfico Chart.js con mayor altura y amplitud para PC y móvil -->
-                <div class="relative w-full h-64 sm:h-72 lg:h-80">
+                <div class="relative w-full h-[380px] sm:h-[440px] lg:h-[480px]">
                   <canvas id="historyChart"></canvas>
                 </div>
 
@@ -2732,14 +2765,69 @@
     }
 
     // ==========================================
-    // RENDERIZADO DE FLOTA CON VISTA PREVIA HOVER
+    // CONTROL DE MODO DE VISTA DE FLOTA (COMPLETA / COMPACTA) CON ANIMACIÓN
     // ==========================================
-    function renderFleetGridDOM() {
+    function setFleetViewMode(mode) {
+      if (state.fleetViewMode === mode) return;
+
+      const container = document.getElementById('fleet-grid-container');
+      if (!container) {
+        state.fleetViewMode = mode === 'compact' ? 'compact' : 'full';
+        localStorage.setItem('smartgarden_fleet_view_mode', state.fleetViewMode);
+        updateFleetViewToggleDOM();
+        renderFleetGridDOM(false);
+        return;
+      }
+
+      // Animación suave de salida (desvanecimiento y micro-escala)
+      container.classList.add('opacity-0', 'scale-[0.98]', 'pointer-events-none');
+
+      setTimeout(() => {
+        state.fleetViewMode = mode === 'compact' ? 'compact' : 'full';
+        localStorage.setItem('smartgarden_fleet_view_mode', state.fleetViewMode);
+        updateFleetViewToggleDOM();
+        // Solo activamos la animación de entrada al cambiar de modo
+        renderFleetGridDOM(true);
+
+        // Animación suave de entrada en cascada
+        requestAnimationFrame(() => {
+          container.classList.remove('opacity-0', 'scale-[0.98]', 'pointer-events-none');
+        });
+      }, 150);
+    }
+
+    function updateFleetViewToggleDOM() {
+      const fullBtn = document.getElementById('fleet-view-full-btn');
+      const compactBtn = document.getElementById('fleet-view-compact-btn');
+      if (!fullBtn || !compactBtn) return;
+
+      const isFull = state.fleetViewMode === 'full';
+      const activeClass = 'bg-[#2ECC71] text-white shadow-xs';
+      const inactiveClass = 'text-[#718096] hover:text-inherit';
+
+      fullBtn.className = `px-2.5 py-1 text-xs font-semibold rounded-lg transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${isFull ? activeClass : inactiveClass}`;
+      compactBtn.className = `px-2.5 py-1 text-xs font-semibold rounded-lg transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${!isFull ? activeClass : inactiveClass}`;
+      lucide.createIcons();
+    }
+
+    // ==========================================
+    // RENDERIZADO DE FLOTA (MODO COMPLETO Y COMPACTO CON ENTRADA ESCALONADA)
+    // ==========================================
+    function renderFleetGridDOM(animate = false) {
       const container = document.getElementById('fleet-grid-container');
       if (!container) return;
 
       const isOled = state.theme === 'oled';
       const itemBg = isOled ? 'bg-[#181818] border-[#2A2A2A]' : 'bg-white border-[#E2E8F0]';
+
+      // Sincronizar estilo de rejilla según el modo con transición fluida
+      if (state.fleetViewMode === 'compact') {
+        container.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 transition-all duration-300 ease-out';
+      } else {
+        container.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-300 ease-out';
+      }
+
+      updateFleetViewToggleDOM();
 
       // Actualizar contador del header resumen en vivo
       const plantsCountEl = document.getElementById('header-plants-count');
@@ -2756,65 +2844,111 @@
         return;
       }
 
-      container.innerHTML = state.userPlants.map(p => {
+      container.innerHTML = state.userPlants.map((p, idx) => {
         const isSelected = p.id === state.selectedFleetPlantId;
         const health = calculatePlantHealth(p, getPlantTelemetry(p));
         const selectedBorder = isSelected
-          ? 'ring-2 ring-[#2ECC71] shadow-lg border-[#2ECC71]/70'
-          : 'hover:border-[#2ECC71]/40';
+          ? isOled
+            ? 'border-2 border-[#2ECC71] shadow-md shadow-[#2ECC71]/20 ring-1 ring-[#2ECC71]/30'
+            : 'border-2 border-[#15803D] shadow-md shadow-[#15803D]/25 ring-1 ring-[#15803D]/30'
+          : `border border-inherit ${isOled ? 'hover:border-[#2ECC71]/50' : 'hover:border-[#15803D]/50'}`;
 
+        const animClass = animate ? 'fleet-card-anim' : '';
+        const animDelayStyle = animate ? `style="animation-delay: ${Math.min(idx * 35, 280)}ms;"` : '';
+
+        // ----------------------------------------------------
+        // MODO 1: VISTA COMPACTA / MINIMALISTA (Avatar + Ficha compacta)
+        // ----------------------------------------------------
+        if (state.fleetViewMode === 'compact') {
+          return `
+          <div onclick="selectFleetPlant(${p.id})"
+            ${animDelayStyle}
+            class="${animClass} ${itemBg} ${selectedBorder} rounded-2xl p-3 shadow-xs transition-all duration-200 flex flex-col justify-between group relative cursor-pointer hover:shadow-md">
+            
+            <div class="flex items-start gap-3 min-w-0">
+              <!-- Avatar Pequeño de la Planta con indicador de esquina en 3D -->
+              <div class="relative w-12 h-12 shrink-0">
+                <img src="${p.imagen_url}" alt="${p.nombre}" class="w-full h-full rounded-xl object-cover object-center ring-1 ring-black/10 group-hover:scale-105 transition-transform duration-300">
+                ${isSelected ? `
+                  <span class="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center z-10" title="Activa en Gemelo 3D">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full ${isOled ? 'bg-[#2ECC71]' : 'bg-[#15803D]'} opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 ${isOled ? 'bg-[#2ECC71]' : 'bg-[#15803D]'} border-2 border-white dark:border-[#181818] shadow-sm"></span>
+                  </span>
+                ` : ''}
+              </div>
+
+              <!-- Información de la Planta -->
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-1">
+                  <h4 class="text-xs font-bold tracking-tight truncate">${p.nombre}</h4>
+                  <!-- Botón Eliminar Maceta -->
+                  <button type="button"
+                    onclick="deleteFleetPlant(event, ${p.id}, '${p.nombre.replace(/'/g, "\\'")}')"
+                    title="Eliminar maceta de la flota"
+                    class="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-all shrink-0 cursor-pointer">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+                <p class="text-[11px] text-[#718096] italic truncate">${p.especie}</p>
+                
+                <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${health.badgeClass}">
+                    ${health.status === 'optimo' ? '🟢 Óptimo' : health.status === 'atencion' ? '🟠 Atención' : '🔴 Crítico'}
+                  </span>
+                  ${isSelected ? `
+                    <span class="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-[#2ECC71] text-white">
+                      En 3D
+                    </span>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+
+            <!-- Barra Inferior de Riego Calibrado y Umbral -->
+            <div class="mt-2.5 pt-2 border-t ${isSelected ? (isOled ? 'border-[#2ECC71]/35' : 'border-[#15803D]/40') : 'border-inherit'} flex items-center justify-between gap-2">
+              <span class="text-[10px] text-[#718096] font-medium truncate">💧 Mín ${p.humedad_min}%</span>
+              <button type="button"
+                onclick="event.stopPropagation(); triggerQuickWater('${p.nombre.replace(/'/g, "\\'")}', ${p.dosis_riego_ml})"
+                title="Regar ${p.nombre} con ${p.dosis_riego_ml} ml"
+                class="px-2.5 py-1 bg-[#D9F0DC] hover:bg-[#BCE3C1] text-[#246B2B] text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer shrink-0">
+                <i data-lucide="droplet" class="w-3 h-3"></i>
+                <span>Regar (${p.dosis_riego_ml}ml)</span>
+              </button>
+            </div>
+          </div>
+          `;
+        }
+
+        // ----------------------------------------------------
+        // MODO 2: VISTA COMPLETA (Imagen grande con zoom suave hacia afuera al cursor)
+        // ----------------------------------------------------
         return `
         <div onclick="selectFleetPlant(${p.id})"
-          class="${itemBg} ${selectedBorder} border rounded-2xl p-4 shadow-xs transition-all flex flex-col justify-between group relative cursor-pointer">
+          ${animDelayStyle}
+          class="${animClass} ${itemBg} ${selectedBorder} rounded-2xl p-4 shadow-xs transition-all duration-200 flex flex-col justify-between group relative cursor-pointer">
           
           <div>
-            <!-- Contenedor de Imagen con Lupa / Preview en Tamaño Real sin maximizar -->
-            <div class="relative w-full h-44 rounded-xl overflow-hidden mb-3 bg-gray-100 cursor-zoom-in">
-              <img src="${p.imagen_url}" alt="${p.nombre}" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300">
-              
-              <!-- Badges Superiores: Dosis y Botón Eliminar -->
-              <div class="absolute top-2 left-2 right-2 flex items-center justify-between z-10 pointer-events-none">
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/75 text-white backdrop-blur-xs shadow-sm">
-                  ${p.dosis_riego_ml} ml
-                </span>
-
-                <!-- Botón Eliminar Maceta (Trash Icon) con pointer-events-auto -->
+            <!-- Contenedor de Imagen con expansión suave hacia afuera al pasar el cursor -->
+            <div class="relative w-full mb-3">
+              <div class="relative w-full h-44 rounded-xl overflow-hidden bg-gray-100">
+                <img src="${p.imagen_url}" alt="${p.nombre}" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300 ease-out">
+                
+                <!-- Botón Eliminar Maceta (Trash Icon) -->
                 <button type="button"
                   onclick="deleteFleetPlant(event, ${p.id}, '${p.nombre.replace(/'/g, "\\'")}')"
                   title="Eliminar maceta de la flota"
-                  class="pointer-events-auto p-1.5 rounded-lg bg-black/65 hover:bg-red-600 text-white hover:text-white transition-all shadow-sm flex items-center justify-center cursor-pointer">
+                  class="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-black/65 hover:bg-red-600 text-white transition-all shadow-sm flex items-center justify-center cursor-pointer">
                   <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                 </button>
               </div>
 
-              <!-- Badges Inferiores: Badge Gemelo 3D y Hover hint -->
-              <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between z-10 pointer-events-none">
-                <span class="px-2 py-0.5 rounded-md text-[9px] font-semibold bg-black/60 text-white opacity-80 group-hover:opacity-0 transition-opacity">
-                  🔍 Pasa el cursor
+              <!-- Punto Indicador Verde en Esquina (Maceta Activa en Gemelo 3D) -->
+              ${isSelected ? `
+                <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center z-20 pointer-events-none" title="Activa en Gemelo 3D">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full ${isOled ? 'bg-[#2ECC71]' : 'bg-[#15803D]'} opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3.5 w-3.5 ${isOled ? 'bg-[#2ECC71]' : 'bg-[#15803D]'} border-2 border-white dark:border-[#181818] shadow-md"></span>
                 </span>
-                ${isSelected ? `
-                  <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#2ECC71] text-white shadow-sm flex items-center gap-1">
-                    <i data-lucide="box" class="w-3 h-3"></i> En Gemelo 3D
-                  </span>
-                ` : `
-                  <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-black/60 text-white/90 group-hover:bg-[#2ECC71] transition-colors flex items-center gap-1">
-                    Ver en 3D
-                  </span>
-                `}
-              </div>
-
-              <!-- Tarjeta Flotante con Imagen Completa en Proporción Real -->
-              <div class="absolute inset-0 z-30 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 pointer-events-none p-2 flex items-center justify-center bg-gradient-to-t from-black/90 via-black/70 to-black/55 backdrop-blur-sm">
-                <div class="w-full h-full flex flex-col items-center justify-center rounded-xl border border-[#2ECC71]/60 p-2 shadow-[0_0_24px_rgba(46,204,113,0.28)]">
-                  <img src="${p.imagen_url}" alt="${p.nombre}" class="max-w-[92%] max-h-[82%] object-contain rounded-lg drop-shadow-[0_8px_12px_rgba(0,0,0,0.45)]">
-                  <span class="mt-1 rounded-full bg-[#2ECC71] px-2.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
-                    Vista completa
-                  </span>
-                  <span class="mt-1 max-w-[90%] truncate text-[9px] text-white/80">
-                    ${p.especie}
-                  </span>
-                </div>
-              </div>
+              ` : ''}
             </div>
 
             <!-- Cabecera de la Maceta con Semáforo de Salud individual -->
@@ -2828,7 +2962,7 @@
               </span>
             </div>
             
-            <div class="mt-3 pt-2 border-t border-inherit space-y-1.5 text-[11px]">
+            <div class="mt-3 pt-2 border-t ${isSelected ? (isOled ? 'border-[#2ECC71]/35' : 'border-[#15803D]/40') : 'border-inherit'} space-y-1.5 text-[11px]">
               <div class="flex justify-between">
                 <span class="text-[#718096]">Humedad Mínima:</span>
                 <span class="font-bold text-[#2B6CB0]">${p.humedad_min}%</span>

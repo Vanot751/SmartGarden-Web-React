@@ -12,3 +12,22 @@ select,
 input {
   font: inherit;
 }
+
+@keyframes fleetCardEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  60% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fleet-card-anim {
+  animation: fleetCardEnter 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
