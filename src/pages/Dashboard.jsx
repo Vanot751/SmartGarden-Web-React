@@ -21,6 +21,7 @@ import {
 import api from '../api/axiosConfig';
 import { useTheme } from '../context/ThemeContext';
 import ControlPanel from '../components/ControlPanel';
+import { rtdb, ref, onValue, set as firebaseSet } from '../api/firebase';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -192,15 +193,56 @@ export default function Dashboard() {
     return { status: 'optimo', badgeClass: 'bg-[#2ECC71] text-white', label: '🟢 Óptimo' };
   };
 
+  // Sincronización instantánea por WebSockets con Firebase Realtime Database (< 50ms)
+  useEffect(() => {
+    try {
+      const telemetryRef = ref(rtdb, 'telemetria/actual');
+      const unsubscribe = onValue(telemetryRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          setTelemetry((prev) => {
+            const prevActuators = prev?.actuadores || {
+              bombaAgua: false,
+              nebulizador: false,
+              dosisRiegoMl: 100,
+              paradaEmergencia: false,
+            };
+            const tempVal = typeof data.temperatura === 'number' ? data.temperatura : (prev?.sensores?.temperatura ?? 26.4);
+            const humVal = typeof data.humedad === 'number' ? data.humedad : (typeof data.humedadSuelo === 'number' ? data.humedadSuelo : (prev?.sensores?.humedadSuelo ?? 52.0));
+            const rawLuzVal = typeof data.luz === 'number' ? data.luz : (typeof data.luzSolar === 'number' ? data.luzSolar : (prev?.sensores?.luzSolar ?? 78.0));
+            const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
+
+            return {
+              ...prev,
+              nodo: data.nodo || (prev?.nodo ?? 'Módulo IoT #1'),
+              moduleId: data.moduleId || (prev?.moduleId ?? 1),
+              sensores: {
+                temperatura: tempVal,
+                humedadSuelo: humVal,
+                luzSolar: luzVal,
+              },
+              actuadores: data.actuadores ? { ...prevActuators, ...data.actuadores } : prevActuators,
+              timestamp: data.timestamp || new Date().toISOString(),
+            };
+          });
+          setLastUpdated(new Date().toLocaleTimeString());
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn('[Firebase Realtime Sync Error]', e);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTelemetry();
     fetchUserPlants();
-    // Sondeo de alta frecuencia (1s) mientras la pestaña esté visible para sincronización en tiempo real
+    // Sondeo de respaldo (10s) mientras la pestaña esté visible
     const interval = setInterval(() => {
       if (typeof document === 'undefined' || document.visibilityState === 'visible') {
         fetchTelemetry();
       }
-    }, 1000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [fetchTelemetry, fetchUserPlants]);
 
@@ -218,10 +260,18 @@ export default function Dashboard() {
     setTelemetry((prev) => {
       const currentSensors = prev?.sensores || { temperatura: 26.4, humedadSuelo: 52, luzSolar: 78 };
       const currentActuators = prev?.actuadores || {};
+      const newActuators = { ...currentActuators, ...updatedActuators };
+
+      try {
+        firebaseSet(ref(rtdb, 'telemetria/actual/actuadores'), newActuators);
+      } catch (e) {
+        console.warn('[Firebase Actuators Sync]', e);
+      }
+
       return {
         ...prev,
         sensores: currentSensors,
-        actuadores: { ...currentActuators, ...updatedActuators }
+        actuadores: newActuators
       };
     });
   };
