@@ -4,6 +4,18 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/admin",
+      "destination": "https://smart-garden-api-django.vercel.app/admin/",
+      "permanent": false
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "https://smart-garden-api-django.vercel.app/admin/:path*",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
