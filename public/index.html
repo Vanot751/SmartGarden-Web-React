@@ -1405,16 +1405,87 @@
       }
     }
 
+    // ==========================================
+    // SINCRONIZACIÓN EN TIEMPO REAL CON FIREBASE (< 30ms)
+    // ==========================================
+    let firebaseEventSource = null;
+
+    function initFirebaseRealtimeSync() {
+      if (firebaseEventSource) {
+        try { firebaseEventSource.close(); } catch (_) {}
+      }
+
+      const firebaseRtdbUrl = "https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/actual.json";
+      try {
+        firebaseEventSource = new EventSource(firebaseRtdbUrl);
+
+        const handleFirebaseData = (rawText) => {
+          try {
+            const payload = JSON.parse(rawText);
+            const data = (payload && payload.data !== undefined) ? payload.data : payload;
+            if (data && typeof data === 'object') {
+              applyFirebaseTelemetry(data);
+            }
+          } catch (e) {
+            console.warn('[Firebase RTDB Parse Error]', e);
+          }
+        };
+
+        firebaseEventSource.addEventListener('put', (e) => handleFirebaseData(e.data));
+        firebaseEventSource.addEventListener('patch', (e) => handleFirebaseData(e.data));
+        firebaseEventSource.onerror = (err) => {
+          // Reintento automático nativo de EventSource
+        };
+      } catch (err) {
+        console.warn('[Firebase EventSource Init Error]', err);
+      }
+    }
+
+    function applyFirebaseTelemetry(data) {
+      if (!data || typeof data !== 'object') return;
+
+      const prevActuators = state.telemetry?.actuadores || {
+        bombaAgua: false,
+        nebulizador: false,
+        dosisRiegoMl: 100,
+        paradaEmergencia: false
+      };
+
+      const tempVal = typeof data.temperatura === 'number' ? data.temperatura : (state.telemetry?.sensores?.temperatura ?? 26.4);
+      const humVal = typeof data.humedad === 'number' ? data.humedad : (typeof data.humedadSuelo === 'number' ? data.humedadSuelo : (state.telemetry?.sensores?.humedadSuelo ?? 52.0));
+      const rawLuzVal = typeof data.luz === 'number' ? data.luz : (typeof data.luzSolar === 'number' ? data.luzSolar : (state.telemetry?.sensores?.luzSolar ?? 78.0));
+      const luzVal = rawLuzVal > 100 ? Math.min(100, Math.round(rawLuzVal / 10)) : rawLuzVal;
+
+      const parsed = {
+        nodo: data.nodo || state.telemetry?.nodo || 'Módulo IoT #1',
+        moduleId: data.moduleId || state.telemetry?.moduleId || 1,
+        sensores: {
+          temperatura: tempVal,
+          humedadSuelo: humVal,
+          luzSolar: luzVal
+        },
+        actuadores: data.actuadores ? { ...prevActuators, ...data.actuadores } : prevActuators,
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+
+      state.telemetry = parsed;
+      state.lastUpdated = new Date().toLocaleTimeString();
+      syncSimulatorWithActiveTelemetry();
+      updateSoilColor(humVal);
+      updateTelemetryCardsDOM();
+    }
+
     function initDashboardData() {
       fetchUserPlants();
       fetchTelemetry(false);
       fetchHistory('24h');
+      initFirebaseRealtimeSync();
       state.searchResults = [];
       state.searchQuery = '';
       state.isSearching = false;
       renderSearchResultsDOM();
       if (state.pollInterval) clearInterval(state.pollInterval);
-      state.pollInterval = setInterval(() => fetchTelemetry(false), 2500);
+      state.pollInterval = setInterval(() => fetchTelemetry(false), 8000);
       setTimeout(() => initThreeJs(), 150);
     }
 
