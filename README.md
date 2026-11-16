@@ -1,117 +1,94 @@
-# SmartGarden Web — Cliente IoT Botánico (React + Vite)
+# SmartGarden Web — Gemelo Digital 3D y Portal de Supervisión IoT
 
-Aplicación web cliente desarrollada en **React + Vite**, **Tailwind CSS**, **Lucide Icons** y **Axios** que consume la API REST de **SmartGarden-API-Django** mediante autenticación **JWT (SimpleJWT)**.
+Portal web interactivo para la supervisión y gestión de cultivos botánicos inteligentes, desarrollado con **React + Vite**, **Three.js (WebGL)**, **Tailwind CSS**, **Lucide Icons** y **Chart.js**. Consume la API REST de **SmartGarden API-Django** y se sincroniza en tiempo real (< 30 ms) mediante **Firebase Realtime Database**.
 
-- **URL pública de la API REST (Backend):** `https://smart-garden-api-django.vercel.app`
-
----
-
-## ¿Qué problema resuelve y cómo usa la API?
-
-**SmartGarden Web** resuelve la supervisión ambiental en tiempo real y la gestión remota de cultivos domésticos e invernaderos IoT multi-módulo:
-
-1. **Autenticación segura con JWT (`SimpleJWT`):**
-   - Obtiene el par de tokens (`access` y `refresh`) mediante `POST /api/token/`.
-   - Adjunta automáticamente `Authorization: Bearer <access_token>` en todas las peticiones protegidas mediante interceptores de Axios.
-   - Renueva automáticamente el token de acceso expirado consumiendo `POST /api/token/refresh/` sin interrumpir la sesión del operador.
-   - Permite registrar nuevos operadores mediante `POST /api/auth/register/`.
-2. **Supervisión Ambiental y Telemetría en Tiempo Real:**
-   - **Panel de Telemetría Dinámico:** Muestra lecturas en tiempo real de temperatura ambiente, humedad de suelo y luminosidad capturadas por los sensores IoT.
-   - **Gestión de Flota Botánica:** Permite alternar entre vistas de cuadrícula o lista de las plantas del usuario, visualizando umbrales óptimos por especie y estado ambiental.
-   - **Simulador IoT Sincronizado:** Permite inyectar lecturas de prueba hacia `POST /api/modules/<id>/telemetry/` y sincronizar el estado reactivo en la interfaz.
-   - **Panel de Control de Actuadores:** Controles de interfaz para emulación de bomba de riego, nebulizador, dosificación y parada de emergencia.
+- **URL de Producción (Vercel):** `https://smart-garden-web-react.vercel.app`
+- **Backend API (Django):** `https://smart-garden-api-django.vercel.app`
 
 ---
 
-## Requisitos e Instalación
+## 🌟 Características Principales
 
-- **Node.js** 20 o superior.
+### 1. Gemelo Digital 3D en Tiempo Real (Three.js)
+- Visualización interactiva en WebGL de la maceta y espécimen botánico con controles orbitales de cámara.
+- **Respuesta Fisiológica Dinámica**:
+  - Color y textura del sustrato cambian en base a la humedad de suelo real (tierra seca arcillosa vs. tierra húmeda fértil).
+  - Tonalidad foliar y efecto de luz de borde (*Rim Light*) que refleja el estrés térmico y la radiación solar recibida por los sensores.
 
-| Acción | Comando | Descripción |
-| :--- | :--- | :--- |
-| **Instalación** | `npm install` | Instala las dependencias del proyecto |
-| **Desarrollo local** | `npm run dev` | Inicia el servidor de desarrollo Vite |
-| **Compilación (Build)** | `npm run build` | Genera el bundle estático de producción en `dist/` |
-| **Vista previa local** | `npm run preview` | Sirve localmente el contenido compilado en `dist/` |
+### 2. Panel de Control de Actuadores y Parada de Emergencia
+- **Ubicación Superior Ergonómica**: Situado directamente debajo de las tarjetas de sensores para acceso inmediato.
+- **Aislamiento por Planta**: Los interruptores de Bomba de Agua (Pin D8), Nebulizador Ultrasónico y selector de dosificación (50 ml, 100 ml, 250 ml o personalizado) se almacenan de forma independiente por cada maceta en `localStorage` (`smartgarden_plant_actuators`).
+- **Parada de Emergencia Global (E-STOP)**: Botón maestro de seguridad industrial que desactiva de inmediato todos los actuadores del invernadero.
+
+### 3. Telemetría Histórica y Umbrales (Chart.js)
+- Gráfico de curvas continuas de tendencia fisiológica (Temperatura ambiente, Humedad de suelo y Radiación solar) superpuestas con las líneas punteadas de los umbrales críticos de la especie.
+- Selector interactivo de rango temporal: **Últimas 24 Horas** y **Últimos 7 Días**.
+
+### 4. Aislamiento Multi-Usuario en Tiempo Real (Firebase RTDB)
+- Conexión SSE bidireccional de baja latencia (< 30 ms).
+- **Ruta Aislada por Operador**: Cada usuario escribe y escucha en su propio espacio:
+  ```text
+  https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/<nombre_usuario>/actual.json
+  ```
+  Garantizando que las demostraciones y simulaciones de un usuario no interfieran con las macetas ni las alertas en el teléfono de otro operador.
+
+### 5. Gestión de Flota Botánica
+- Conmutador de visualización entre **Vista Completa** (tarjetas expandidas con métricas) y **Vista Compacta** (listado rápido).
+- Selección de maceta activa sincronizada con el Gemelo Digital 3D y el histórico de sensores.
 
 ---
 
-## Variables de entorno (`VITE_*`)
+## 🛠️ Tecnologías Empleadas
 
-La URL base del backend se configura mediante la variable pública:
+| Tecnología | Rol en el Proyecto |
+| :--- | :--- |
+| **React 19 + Vite** | Entorno de desarrollo ultrarrápido y renderizado SPA |
+| **Three.js** | Modelado y renderizado del Gemelo Digital 3D en Canvas |
+| **Tailwind CSS** | Estilizado responsivo con paleta orgánica y Modo Oscuro OLED |
+| **Chart.js** | Visualización de telemetría histórica y curvas de umbrales |
+| **Firebase Realtime Database** | Capa de sincronización reactiva en tiempo real (< 30ms) |
+| **Axios** | Cliente HTTP con interceptores JWT y auto-renovación de token |
 
+---
+
+## 💻 Instalación y Desarrollo Local
+
+### Requisitos
+- **Node.js** 20.x o superior.
+- **npm** o **pnpm**.
+
+```bash
+# 1. Clonar el repositorio y entrar a la carpeta
+cd Web-React
+
+# 2. Instalar dependencias
+npm install
+
+# 3. Iniciar el servidor local de desarrollo
+npm run dev
+```
+
+El servidor estará accesible en `http://localhost:5173/`.
+
+### Variables de Entorno (`.env`)
 ```env
 VITE_API_URL=https://smart-garden-api-django.vercel.app
 ```
-URLs públicas:
 
-```text
-Backend:  https://smart-garden-api-django.vercel.app/
-Frontend: https://smart-garden-web-react.vercel.app/
+### Compilación para Producción
+```bash
+npm run build
 ```
-
-### Separación por entorno en Vercel
-
-En **Vercel Dashboard → Project Settings → Environment Variables**, define `VITE_API_URL` por separado:
-
-| Entorno | Uso | Valor recomendado para `VITE_API_URL` |
-| :--- | :--- | :--- |
-| **Development** | Desarrollo local (`.env` local, ignorado por Git) | URL local de tu servidor Django o `https://smart-garden-api-django.vercel.app` |
-| **Preview** | Ramas de feature y Pull Requests en GitHub | `https://smart-garden-api-django.vercel.app` |
-| **Production** | Rama principal (`main`) desplegada en producción | `https://smart-garden-api-django.vercel.app` |
-
-> **Seguridad:** Nunca definas credenciales, contraseñas, `DATABASE_URL` ni `SECRET_KEY` en variables `VITE_*`.
+Genera el paquete optimizado en la carpeta `dist/` listo para ser servido en Vercel o cualquier CDN.
 
 ---
 
-## Endpoints consumidos por el Frontend
+## 🔒 Endpoints Consumidos
 
-### Autenticación y Cuentas
-- **Login (SimpleJWT):** `POST https://smart-garden-api-django.vercel.app/api/token/`
-- **Renovación de Token (SimpleJWT):** `POST https://smart-garden-api-django.vercel.app/api/token/refresh/`
-- **Registro de Usuario:** `POST https://smart-garden-api-django.vercel.app/api/auth/register/`
-
-### Recursos Protegidos (`Authorization: Bearer <token>`)
-- `GET /api/modules/` y `POST /api/modules/`
-- `GET /api/user-plants/`, `POST /api/user-plants/` y `DELETE /api/user-plants/<id>/`
-- `GET /api/telemetry/`, `GET /api/telemetry/?module=<id>` y `POST /api/modules/<id>/telemetry/`
-- `GET /api/plants/search/?q=<query>`
-
----
-
-## Colección de pruebas (`curl`)
-
-### 1. Petición sin autenticación (debe rechazar acceso a ruta protegida con `401 Unauthorized`)
-```bash
-curl -i -X GET "https://smart-garden-api-django.vercel.app/api/user-plants/"
-```
-
-### 2. Registro de nuevo usuario (`POST /api/auth/register/`)
-```bash
-curl -i -X POST "https://smart-garden-api-django.vercel.app/api/auth/register/" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\":\"operador_demo\",\"email\":\"operador_demo@inacap.cl\",\"password\":\"Password123!\",\"password_confirm\":\"Password123!\"}"
-```
-
-### 3. Obtención de Token JWT (`POST /api/token/`)
-```bash
-curl -i -X POST "https://smart-garden-api-django.vercel.app/api/token/" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\":\"operador_demo\",\"password\":\"Password123!\"}"
-```
-
-### 4. Renovación de Token JWT (`POST /api/token/refresh/`)
-```bash
-curl -i -X POST "https://smart-garden-api-django.vercel.app/api/token/refresh/" \
-  -H "Content-Type: application/json" \
-  -d "{\"refresh\":\"<PEGA_AQUI_TU_REFRESH_TOKEN>\"}"
-```
-
-### 5. Consulta de recursos protegidos con `Bearer Token` (`GET /api/modules/` y `GET /api/telemetry/`)
-```bash
-curl -i -X GET "https://smart-garden-api-django.vercel.app/api/modules/" \
-  -H "Authorization: Bearer <PEGA_AQUI_TU_ACCESS_TOKEN>"
-
-curl -i -X GET "https://smart-garden-api-django.vercel.app/api/telemetry/" \
-  -H "Authorization: Bearer <PEGA_AQUI_TU_ACCESS_TOKEN>"
-```
+- `POST /api/token/` — Autenticación SimpleJWT (Access + Refresh tokens).
+- `POST /api/token/refresh/` — Renovación automática de credenciales expiradas.
+- `POST /api/auth/register/` — Registro de nuevos operadores.
+- `GET /api/modules/` — Módulos IoT asociados a la cuenta.
+- `GET/POST/DELETE /api/user-plants/` — Gestión de macetas en la flota del usuario.
+- `GET /api/telemetry/` — Consulta de registros históricos de telemetría.
+- `POST /api/modules/<id>/telemetry/` — Inyección y persistencia de lecturas de sensores.
