@@ -1161,6 +1161,44 @@
       }
     }
 
+    let isFirebaseSyncing = false;
+    let pendingFirebasePayload = null;
+
+    async function syncFirebaseOutbound() {
+      const payload = {
+        temperatura: Number(Number(state.simulation.temperatura).toFixed(1)),
+        humedad: Number(Number(state.simulation.humedadSuelo).toFixed(1)),
+        luz: Number(Number(state.simulation.luzSolar ?? 78).toFixed(1)),
+        nodo: "Web-Portal",
+        timestamp: new Date().toISOString()
+      };
+
+      if (isFirebaseSyncing) {
+        pendingFirebasePayload = payload;
+        return;
+      }
+
+      isFirebaseSyncing = true;
+      try {
+        await fetch("https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/actual.json", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      } catch (_) {}
+      isFirebaseSyncing = false;
+
+      if (pendingFirebasePayload) {
+        const nextPayload = pendingFirebasePayload;
+        pendingFirebasePayload = null;
+        fetch("https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/actual.json", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(nextPayload)
+        }).catch(() => {});
+      }
+    }
+
     function setSimulationParam(param, val) {
       state.simulation.active = true;
       state.lastLocalSimEdit = Date.now();
@@ -1172,6 +1210,7 @@
       renderFleetGridDOM();
       renderChart();
       scheduleSimulationSync(false);
+      syncFirebaseOutbound();
     }
 
     function triggerSimulationPreset(preset) {
@@ -1203,6 +1242,7 @@
       renderFleetGridDOM();
       renderChart();
       scheduleSimulationSync(true);
+      syncFirebaseOutbound();
     }
 
     function resetSimulationToReal() {
@@ -1469,10 +1509,28 @@
       };
 
       state.telemetry = parsed;
+
+      // Actualizar también la caché de la planta activa seleccionada para que getEffectiveTelemetry() no devuelva datos viejos
+      const selectedPlant = getSelectedPlant();
+      const selectedModId = getPlantModuleId(selectedPlant);
+      if (selectedModId) {
+        state.telemetryByModule[String(selectedModId)] = parsed;
+      }
+      state.telemetryByModule[String(parsed.moduleId || 1)] = parsed;
+
+      // Si el usuario no está manipulando los sliders en esta pestaña, reflejar el valor remoto al instante
+      if (!isLocalUserDraggingSimulator()) {
+        state.simulation.temperatura = tempVal;
+        state.simulation.humedadSuelo = humVal;
+        state.simulation.luzSolar = luzVal;
+        updateSimulatorDOM();
+      }
+
       state.lastUpdated = new Date().toLocaleTimeString();
-      syncSimulatorWithActiveTelemetry();
       updateSoilColor(humVal);
       updateTelemetryCardsDOM();
+      updateTwinDOM();
+      renderFleetGridDOM();
     }
 
     function initDashboardData() {
