@@ -611,6 +611,10 @@
     }
 
     function logout() {
+      if (firebaseEventSource) {
+        try { firebaseEventSource.close(); } catch (_) {}
+        firebaseEventSource = null;
+      }
       if (state.operator && state.operator.toLowerCase() !== 'operador') {
         localStorage.setItem('smartgarden_last_user', state.operator);
       }
@@ -1187,15 +1191,34 @@
       }
     }
 
+    function getFirebaseUserKey() {
+      const user = state.operator || localStorage.getItem('operator_user') || 'operador';
+      return encodeURIComponent(user.toLowerCase().trim().replace(/[.#$\[\]\/]/g, '_'));
+    }
+
+    function getFirebaseUrl() {
+      const userKey = getFirebaseUserKey();
+      return `https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/${userKey}/actual.json`;
+    }
+
     let isFirebaseSyncing = false;
     let pendingFirebasePayload = null;
 
     async function syncFirebaseOutbound() {
+      const selectedPlant = getSelectedPlant();
+      const plantName = selectedPlant ? (selectedPlant.apodo || selectedPlant.nombre_comun || 'Maceta Inteligente') : 'Maceta Inteligente';
+      const plantId = selectedPlant ? String(selectedPlant.id) : null;
+      const moduleId = selectedPlant ? getPlantModuleId(selectedPlant) : null;
+
       const payload = {
         temperatura: Number(Number(state.simulation.temperatura).toFixed(1)),
         humedad: Number(Number(state.simulation.humedadSuelo).toFixed(1)),
         luz: Number(Number(state.simulation.luzSolar ?? 78).toFixed(1)),
         nodo: "Web-Portal",
+        planta: plantName,
+        plantId: plantId,
+        moduleId: moduleId,
+        user: state.operator,
         timestamp: new Date().toISOString()
       };
 
@@ -1206,7 +1229,7 @@
 
       isFirebaseSyncing = true;
       try {
-        await fetch("https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/actual.json", {
+        await fetch(getFirebaseUrl(), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -1217,7 +1240,7 @@
       if (pendingFirebasePayload) {
         const nextPayload = pendingFirebasePayload;
         pendingFirebasePayload = null;
-        fetch("https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/actual.json", {
+        fetch(getFirebaseUrl(), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(nextPayload)
@@ -1510,9 +1533,12 @@
     function initFirebaseRealtimeSync() {
       if (firebaseEventSource) {
         try { firebaseEventSource.close(); } catch (_) {}
+        firebaseEventSource = null;
       }
 
-      const firebaseRtdbUrl = "https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/actual.json";
+      if (!state.token) return;
+
+      const firebaseRtdbUrl = getFirebaseUrl();
       try {
         firebaseEventSource = new EventSource(firebaseRtdbUrl);
 
