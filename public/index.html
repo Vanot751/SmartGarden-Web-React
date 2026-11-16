@@ -1021,6 +1021,7 @@
       updateTelemetryCardsDOM();
       renderFleetGridDOM();
       updateTwinDOM();
+      updateActuatorsDOM();
       renderChart();
       fetchTelemetry(false);
     }
@@ -1385,18 +1386,60 @@
     }
 
     async function sendActuatorCommand(payload) {
-      if (state.telemetry && state.telemetry.actuadores) {
-        Object.assign(state.telemetry.actuadores, payload);
-        if (payload.paradaEmergencia) {
-          state.telemetry.actuadores.bombaAgua = false;
-          state.telemetry.actuadores.nebulizador = false;
+      const selectedPlant = getSelectedPlant();
+      const modId = getPlantModuleId(selectedPlant);
+
+      // 1. Si es comando de parada de emergencia, es GLOBAL (afecta a toda la estación)
+      if (payload.paradaEmergencia !== undefined) {
+        state.isGlobalEmergencyStop = Boolean(payload.paradaEmergencia);
+        Object.keys(state.telemetryByModule).forEach(k => {
+          if (state.telemetryByModule[k]) {
+            if (!state.telemetryByModule[k].actuadores) {
+              state.telemetryByModule[k].actuadores = { bombaAgua: false, nebulizador: false, dosisRiegoMl: 100, paradaEmergencia: false };
+            }
+            state.telemetryByModule[k].actuadores.paradaEmergencia = state.isGlobalEmergencyStop;
+            if (state.isGlobalEmergencyStop) {
+              state.telemetryByModule[k].actuadores.bombaAgua = false;
+              state.telemetryByModule[k].actuadores.nebulizador = false;
+            }
+          }
+        });
+        if (state.telemetry && state.telemetry.actuadores) {
+          state.telemetry.actuadores.paradaEmergencia = state.isGlobalEmergencyStop;
+          if (state.isGlobalEmergencyStop) {
+            state.telemetry.actuadores.bombaAgua = false;
+            state.telemetry.actuadores.nebulizador = false;
+          }
         }
         updateActuatorsDOM();
+        try { await api.post('/api/actuators/', payload); } catch (_) {}
+        return;
       }
+
+      // 2. Si es comando de bomba o nebulizador, es INDIVIDUAL para la maceta activa
+      if (modId) {
+        if (!state.telemetryByModule[String(modId)]) {
+          state.telemetryByModule[String(modId)] = { ...state.telemetry };
+        }
+        if (!state.telemetryByModule[String(modId)].actuadores) {
+          state.telemetryByModule[String(modId)].actuadores = {
+            bombaAgua: false,
+            nebulizador: false,
+            dosisRiegoMl: 100,
+            paradaEmergencia: Boolean(state.isGlobalEmergencyStop)
+          };
+        }
+        Object.assign(state.telemetryByModule[String(modId)].actuadores, payload);
+      }
+      if (state.telemetry && state.telemetry.actuadores) {
+        Object.assign(state.telemetry.actuadores, payload);
+      }
+      updateActuatorsDOM();
+
       try {
-        const res = await api.post('/api/actuators/', payload);
-        if (res.data && state.telemetry) {
-          Object.assign(state.telemetry.actuadores, res.data);
+        const res = await api.post('/api/actuators/', { ...payload, module: modId });
+        if (res.data && modId && state.telemetryByModule[String(modId)]?.actuadores) {
+          Object.assign(state.telemetryByModule[String(modId)].actuadores, res.data);
           updateActuatorsDOM();
         }
       } catch (err) {
@@ -2821,7 +2864,21 @@
       const container = document.getElementById('actuators-container');
       if (!container) return;
 
-      const a = state.telemetry?.actuadores || { bombaAgua: false, nebulizador: false, dosisRiegoMl: 100, paradaEmergencia: false };
+      const selectedPlant = getSelectedPlant();
+      const modId = getPlantModuleId(selectedPlant);
+      const modTelemetry = modId ? state.telemetryByModule[String(modId)] : null;
+      const rawActuators = (modTelemetry && modTelemetry.actuadores) || state.telemetry?.actuadores || {
+        bombaAgua: false,
+        nebulizador: false,
+        dosisRiegoMl: 100,
+        paradaEmergencia: false
+      };
+      const a = { ...rawActuators };
+      if (state.isGlobalEmergencyStop) {
+        a.paradaEmergencia = true;
+        a.bombaAgua = false;
+        a.nebulizador = false;
+      }
       const isOled = state.theme === 'oled';
       const isEStop = a.paradaEmergencia;
 
