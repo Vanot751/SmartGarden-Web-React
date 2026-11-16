@@ -195,7 +195,12 @@ export default function Dashboard() {
   useEffect(() => {
     fetchTelemetry();
     fetchUserPlants();
-    const interval = setInterval(() => fetchTelemetry(), 8000); // Polling cada 8s
+    // Sondeo de alta frecuencia (1s) mientras la pestaña esté visible para sincronización en tiempo real
+    const interval = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        fetchTelemetry();
+      }
+    }, 1000);
     return () => clearInterval(interval);
   }, [fetchTelemetry, fetchUserPlants]);
 
