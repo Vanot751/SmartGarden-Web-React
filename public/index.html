@@ -2509,7 +2509,7 @@
                     <span>Vista Compacta</span>
                   </button>
                 </div>
-                <button onclick="scrollToSearch()" class="px-3.5 py-2 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs">
+                <button onclick="openAddPlantModal()" class="px-3.5 py-2 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-transform active:scale-95">
                   <i data-lucide="plus" class="w-4 h-4"></i>
                   <span>Añadir Maceta Botánica</span>
                 </button>
@@ -3417,14 +3417,32 @@
     }
 
     // ==========================================
-    // MODAL DE AJUSTE FINO DE PARÁMETROS
+    // MODAL DE AÑADIR MACETA BOTÁNICA / AJUSTE FINO
     // ==========================================
-    function openPlantModal(plantId) {
-      const plant = state.searchResults.find(p => p.id === plantId);
-      if (!plant) return;
-      state.selectedPlantForConfig = plant;
+    const BOTANICAL_PRESETS = [
+      { id: 'smartgarden-ficus', nombre_comun: 'Monstera Deliciosa', especie: 'Monstera deliciosa', familia: 'Araceae', luz_optima: 'Luz indirecta brillante', dosis_riego_ml: 150, humedad_min: 40, temp_min: 18, temp_max: 32, imagen_url: '/plants/ficus.jpg' },
+      { id: 'smartgarden-menta', nombre_comun: 'Menta Piperita', especie: 'Mentha piperita', familia: 'Lamiaceae', luz_optima: 'Sol directo o semisombra', dosis_riego_ml: 100, humedad_min: 50, temp_min: 14, temp_max: 28, imagen_url: '/plants/menta.jpg' },
+      { id: 'smartgarden-lavanda', nombre_comun: 'Lavanda Inglesa', especie: 'Lavandula angustifolia', familia: 'Lamiaceae', luz_optima: 'Pleno sol 6h+', dosis_riego_ml: 80, humedad_min: 25, temp_min: 10, temp_max: 35, imagen_url: '/plants/lavanda.jpg' },
+      { id: 'smartgarden-albahaca', nombre_comun: 'Albahaca Genovesa', especie: 'Ocimum basilicum', familia: 'Lamiaceae', luz_optima: 'Luz solar directa', dosis_riego_ml: 120, humedad_min: 45, temp_min: 15, temp_max: 30, imagen_url: '/plants/albahaca.jpg' },
+      { id: 'smartgarden-limonero', nombre_comun: 'Limonero Sutil', especie: 'Citrus limon', familia: 'Rutaceae', luz_optima: 'Pleno sol exterior', dosis_riego_ml: 200, humedad_min: 40, temp_min: 12, temp_max: 35, imagen_url: '/plants/limonero.jpg' },
+      { id: 'smartgarden-romero', nombre_comun: 'Romero Aromático', especie: 'Salvia rosmarinus', familia: 'Lamiaceae', luz_optima: 'Sol directo constante', dosis_riego_ml: 70, humedad_min: 20, temp_min: 10, temp_max: 38, imagen_url: '/plants/romero.jpg' }
+    ];
 
+    function openAddPlantModal(presetIndex = 0) {
+      const preset = BOTANICAL_PRESETS[presetIndex] || BOTANICAL_PRESETS[0];
+      state.selectedPlantForConfig = preset;
+      renderPlantModal(preset, true, presetIndex);
+    }
+
+    function openPlantModal(plantId) {
+      const plant = state.searchResults.find(p => p.id === plantId) || BOTANICAL_PRESETS.find(p => p.id === plantId) || BOTANICAL_PRESETS[0];
+      state.selectedPlantForConfig = plant;
+      renderPlantModal(plant, false);
+    }
+
+    function renderPlantModal(plant, isPresetMode = false, activePresetIndex = 0) {
       const container = document.getElementById('plant-modal-container');
+      if (!container) return;
       const isOled = state.theme === 'oled';
       const cardBg = isOled ? 'bg-[#181818] border-[#333333]' : 'bg-white border-[#E2E8F0]';
 
@@ -3436,21 +3454,48 @@
               <i data-lucide="x" class="w-5 h-5"></i>
             </button>
 
-            <!-- Cabecera del Modal con Imagen Completa en Proporción Natural -->
-            <div class="flex items-center gap-4 mb-4 pb-4 border-b border-inherit">
-              <div class="w-20 h-20 rounded-2xl overflow-hidden bg-gray-100 shrink-0 border border-gray-200">
-                <img src="${plant.imagen_url}" alt="${plant.nombre_comun}" class="w-full h-full object-contain p-1">
+            <!-- Cabecera del Modal -->
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-8 h-8 rounded-xl bg-[#2ECC71]/15 text-[#2ECC71] flex items-center justify-center">
+                <i data-lucide="sprout" class="w-5 h-5"></i>
               </div>
               <div>
-                <h3 class="text-base font-bold">${plant.nombre_comun}</h3>
-                <p class="text-xs text-[#718096] italic">${plant.especie} • ${plant.familia}</p>
-                <span class="text-[10px] font-bold text-[#2ECC71]">Luz: ${plant.luz_optima}</span>
+                <h3 class="text-base font-bold">${isPresetMode ? 'Añadir Maceta a tu Flota' : 'Configuración de Especie'}</h3>
+                <p class="text-xs text-[#718096]">Configura la especie y calibración de riego inteligente</p>
+              </div>
+            </div>
+
+            <!-- Selector Rápido de Especies Populares -->
+            <div class="mb-4">
+              <label class="block text-xs font-semibold text-[#718096] mb-1.5">Especies botánicas recomendadas:</label>
+              <div class="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
+                ${BOTANICAL_PRESETS.map((p, idx) => `
+                  <button type="button" onclick="openAddPlantModal(${idx})" class="px-3 py-1.5 rounded-xl border text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    (isPresetMode && idx === activePresetIndex) || (!isPresetMode && plant.id === p.id)
+                      ? 'bg-[#2ECC71] text-white border-[#2ECC71] shadow-xs'
+                      : (isOled ? 'bg-[#222] border-[#333] text-gray-300 hover:border-gray-500' : 'bg-gray-100 border-gray-200 text-gray-700 hover:border-gray-400')
+                  }">
+                    ${p.nombre_comun}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Ficha Técnica de la Especie -->
+            <div class="flex items-center gap-4 mb-4 p-3 rounded-2xl border ${isOled ? 'bg-[#121212] border-[#2A2A2A]' : 'bg-[#F9F8F5] border-[#E2E8F0]'}">
+              <div class="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-inherit">
+                <img src="${plant.imagen_url}" alt="${plant.nombre_comun}" class="w-full h-full object-cover">
+              </div>
+              <div>
+                <h4 class="text-sm font-bold">${plant.nombre_comun}</h4>
+                <p class="text-xs text-[#718096] italic">${plant.especie} • ${plant.familia || 'Botánica'}</p>
+                <span class="text-[10px] font-bold text-[#2ECC71]">Luz: ${plant.luz_optima || 'Luz indirecta'}</span>
               </div>
             </div>
 
             <form onsubmit="savePlantConfig(event)" class="space-y-4">
               <div>
-                <label class="block text-xs font-semibold text-[#718096] mb-1">Nombre Personalizado de la Maceta</label>
+                <label class="block text-xs font-semibold text-[#718096] mb-1">Apodo / Nombre de tu Maceta</label>
                 <input id="cfg-nombre" type="text" value="${plant.nombre_comun} - Maceta" required
                   class="w-full px-3.5 py-2.5 rounded-xl text-xs border ${isOled ? 'bg-[#222] border-[#333] text-white' : 'bg-gray-50 border-gray-200'}">
               </div>
@@ -3459,9 +3504,9 @@
               <div>
                 <div class="flex justify-between text-xs font-semibold mb-1">
                   <span class="text-[#718096]">Dosis de Riego Calibrada</span>
-                  <span id="cfg-dosis-val" class="text-[#2ECC71] font-bold">${plant.dosis_riego_ml} ml</span>
+                  <span id="cfg-dosis-val" class="text-[#2ECC71] font-bold">${plant.dosis_riego_ml || 100} ml</span>
                 </div>
-                <input id="cfg-dosis" type="range" min="20" max="500" step="10" value="${plant.dosis_riego_ml}"
+                <input id="cfg-dosis" type="range" min="20" max="500" step="10" value="${plant.dosis_riego_ml || 100}"
                   oninput="document.getElementById('cfg-dosis-val').innerText = this.value + ' ml'"
                   class="w-full accent-[#2ECC71]">
               </div>
@@ -3470,9 +3515,9 @@
               <div>
                 <div class="flex justify-between text-xs font-semibold mb-1">
                   <span class="text-[#718096]">Humedad Mínima Óptima</span>
-                  <span id="cfg-hum-val" class="text-[#2B6CB0] font-bold">${plant.humedad_min}%</span>
+                  <span id="cfg-hum-val" class="text-[#2B6CB0] font-bold">${plant.humedad_min || 30}%</span>
                 </div>
-                <input id="cfg-hum-min" type="range" min="10" max="80" step="1" value="${plant.humedad_min}"
+                <input id="cfg-hum-min" type="range" min="10" max="80" step="1" value="${plant.humedad_min || 30}"
                   oninput="document.getElementById('cfg-hum-val').innerText = this.value + '%'"
                   class="w-full accent-[#2B6CB0]">
               </div>
@@ -3480,19 +3525,20 @@
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block text-xs font-semibold text-[#718096] mb-1">Temp Máxima Tolerada (°C)</label>
-                  <input id="cfg-temp-max" type="number" step="0.5" value="${plant.temp_max}" required
+                  <input id="cfg-temp-max" type="number" step="0.5" value="${plant.temp_max || 35.0}" required
                     class="w-full px-3.5 py-2 rounded-xl text-xs border ${isOled ? 'bg-[#222] border-[#333] text-white' : 'bg-gray-50 border-gray-200'}">
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-[#718096] mb-1">Temp Mínima (°C)</label>
-                  <input id="cfg-temp-min" type="number" step="0.5" value="${plant.temp_min}" required
+                  <input id="cfg-temp-min" type="number" step="0.5" value="${plant.temp_min || 15.0}" required
                     class="w-full px-3.5 py-2 rounded-xl text-xs border ${isOled ? 'bg-[#222] border-[#333] text-white' : 'bg-gray-50 border-gray-200'}">
                 </div>
               </div>
 
               <button type="submit"
-                class="w-full py-3 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md mt-4">
-                Vincular a Maceta y Guardar en Flota
+                class="w-full py-3 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md mt-4 flex items-center justify-center gap-2">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span>Vincular a Maceta y Guardar en Flota</span>
               </button>
             </form>
 
