@@ -21,6 +21,7 @@ import {
 import api from '../api/axiosConfig';
 import { useTheme } from '../context/ThemeContext';
 import ControlPanel from '../components/ControlPanel';
+import FloraBotWidget from '../components/FloraBotWidget';
 import { rtdb, ref, onValue, set as firebaseSet } from '../api/firebase';
 
 export default function Dashboard() {
@@ -842,6 +843,28 @@ export default function Dashboard() {
 
         {/* Panel de Actuadores Interactivos */}
         <ControlPanel actuators={actuators} onUpdate={handleActuatorUpdate} />
+
+        {/* Asistente Botánico Inteligente FloraBot */}
+        <FloraBotWidget 
+          activePlant={selectedPlant ? {
+            name: selectedPlant.apodo || selectedPlant.nombre,
+            scientific_name: selectedPlant.especie || selectedPlant.scientific_name,
+            temp_min: selectedPlant.temp_min,
+            temp_max: selectedPlant.temp_max,
+            humedad_min: selectedPlant.humedad_min,
+            dosis_riego_ml: selectedPlant.dosis_riego_ml,
+          } : { 
+            name: selectedProfile.name,
+            temp_min: 15.0,
+            temp_max: selectedProfile.maxTemp,
+            humedad_min: selectedProfile.minHumidity,
+          }}
+          activeTelemetry={{
+            temperature: temp,
+            soil_moisture: humidity,
+            light_lux: light
+          }}
+        />
 
       </main>
     </div>
