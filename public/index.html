@@ -229,12 +229,18 @@
       return rawUrl.trim().replace(/\/+$/, '').replace(/\/api$/i, '');
     }
 
+    const isLocalhost = Boolean(
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '[::1]'
+    );
+
     const rawConfiguredApiUrl =
       typeof window.__VITE_API_URL__ === 'string' && window.__VITE_API_URL__.trim()
         ? window.__VITE_API_URL__
-        : window.__USE_DEV_PROXY__
-          ? ''
-          : DEFAULT_PRODUCTION_API_URL;
+        : isLocalhost
+          ? (window.location.port === '8000' ? '' : 'http://127.0.0.1:8000')
+          : (window.__USE_DEV_PROXY__ ? '' : DEFAULT_PRODUCTION_API_URL);
 
     const API_BASE_URL = normalizeApiBaseUrl(rawConfiguredApiUrl);
 
@@ -3809,7 +3815,7 @@
           content: m.content
         }));
 
-        const res = await axios.post('/api/chat/', {
+        const res = await api.post('/api/chat/', {
           message: text,
           history: historyPayload,
           plant_context: plantContext
