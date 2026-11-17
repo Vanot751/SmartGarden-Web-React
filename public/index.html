@@ -615,6 +615,10 @@
         try { firebaseEventSource.close(); } catch (_) {}
         firebaseEventSource = null;
       }
+      if (firebaseActuatorsEventSource) {
+        try { firebaseActuatorsEventSource.close(); } catch (_) {}
+        firebaseActuatorsEventSource = null;
+      }
       if (state.operator && state.operator.toLowerCase() !== 'operador') {
         localStorage.setItem('smartgarden_last_user', state.operator);
       }
@@ -1201,6 +1205,83 @@
       return `https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/${userKey}/actual.json`;
     }
 
+    function getFirebaseActuatorsUrl() {
+      const userKey = getFirebaseUserKey();
+      return `https://smartgarden-web-react-iot-default-rtdb.firebaseio.com/telemetria/${userKey}/actuadores.json`;
+    }
+
+    async function syncActuatorsToFirebase() {
+      const selectedPlant = getSelectedPlant();
+      const plantKey = String(selectedPlant?.id || 'default');
+      const activeActs = getActivePlantActuators();
+
+      const payload = {
+        bombaAgua: Boolean(activeActs.bombaAgua),
+        nebulizador: Boolean(activeActs.nebulizador),
+        dosisRiegoMl: Number(activeActs.dosisRiegoMl || 100),
+        paradaEmergencia: Boolean(state.isGlobalEmergencyStop),
+        plantId: plantKey,
+        plantName: selectedPlant ? (selectedPlant.apodo || selectedPlant.nombre_comun || 'Maceta') : 'Maceta',
+        user: state.operator || 'operador',
+        updatedAt: new Date().toISOString()
+      };
+
+      try {
+        const actUrl = getFirebaseActuatorsUrl();
+        await fetch(actUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        // Sincronizar también dentro de /actual/actuadores para el stream SSE unificado
+        const actualActUrl = getFirebaseUrl().replace('.json', '/actuadores.json');
+        fetch(actualActUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('[Firebase Actuators Sync Error]', err);
+      }
+    }
+
+    async function fetchActuatorsFromFirebase() {
+      try {
+        const actUrl = getFirebaseActuatorsUrl();
+        const res = await fetch(actUrl);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && typeof data === 'object') {
+          applyRemoteActuators(data);
+        }
+      } catch (err) {
+        console.warn('[Firebase Fetch Actuators Error]', err);
+      }
+    }
+
+    function applyRemoteActuators(data) {
+      if (!data || typeof data !== 'object') return;
+
+      const isEStop = Boolean(data.paradaEmergencia);
+      state.isGlobalEmergencyStop = isEStop;
+      localStorage.setItem('smartgarden_global_estop', String(isEStop));
+
+      const selectedPlant = getSelectedPlant();
+      const plantKey = String(data.plantId || selectedPlant?.id || 'default');
+
+      const existing = state.actuatorsByPlantId[plantKey] || {};
+      state.actuatorsByPlantId[plantKey] = {
+        ...existing,
+        bombaAgua: isEStop ? false : Boolean(data.bombaAgua),
+        nebulizador: isEStop ? false : Boolean(data.nebulizador),
+        dosisRiegoMl: typeof data.dosisRiegoMl === 'number' ? data.dosisRiegoMl : (existing.dosisRiegoMl || 100)
+      };
+
+      localStorage.setItem('smartgarden_plant_actuators', JSON.stringify(state.actuatorsByPlantId));
+      updateActuatorsDOM();
+    }
+
     let isFirebaseSyncing = false;
     let pendingFirebasePayload = null;
 
@@ -1219,6 +1300,7 @@
         plantId: plantId,
         moduleId: moduleId,
         user: state.operator,
+        actuadores: getActivePlantActuators(),
         timestamp: new Date().toISOString()
       };
 
@@ -1454,6 +1536,7 @@
         }
         localStorage.setItem('smartgarden_plant_actuators', JSON.stringify(state.actuatorsByPlantId));
         updateActuatorsDOM();
+        syncActuatorsToFirebase();
         try { await api.post('/api/actuators/', payload); } catch (_) {}
         return;
       }
@@ -1476,6 +1559,7 @@
       localStorage.setItem('smartgarden_plant_actuators', JSON.stringify(state.actuatorsByPlantId));
 
       updateActuatorsDOM();
+      syncActuatorsToFirebase();
 
       try {
         await api.post('/api/actuators/', { ...payload, module: modId });
@@ -1548,6 +1632,9 @@
             const data = (payload && payload.data !== undefined) ? payload.data : payload;
             if (data && typeof data === 'object') {
               applyFirebaseTelemetry(data);
+              if (data.actuadores && typeof data.actuadores === 'object') {
+                applyRemoteActuators(data.actuadores);
+              }
             }
           } catch (e) {
             console.warn('[Firebase RTDB Parse Error]', e);
@@ -1561,6 +1648,40 @@
         };
       } catch (err) {
         console.warn('[Firebase EventSource Init Error]', err);
+      }
+    }
+
+    let firebaseActuatorsEventSource = null;
+
+    function initFirebaseActuatorsSync() {
+      if (firebaseActuatorsEventSource) {
+        try { firebaseActuatorsEventSource.close(); } catch (_) {}
+        firebaseActuatorsEventSource = null;
+      }
+
+      if (!state.token) return;
+
+      try {
+        const actUrl = getFirebaseActuatorsUrl();
+        firebaseActuatorsEventSource = new EventSource(actUrl);
+
+        const handleActData = (rawText) => {
+          try {
+            const payload = JSON.parse(rawText);
+            const data = (payload && payload.data !== undefined) ? payload.data : payload;
+            if (data && typeof data === 'object') {
+              applyRemoteActuators(data);
+            }
+          } catch (e) {
+            console.warn('[Firebase Actuators Parse Error]', e);
+          }
+        };
+
+        firebaseActuatorsEventSource.addEventListener('put', (e) => handleActData(e.data));
+        firebaseActuatorsEventSource.addEventListener('patch', (e) => handleActData(e.data));
+        firebaseActuatorsEventSource.onerror = () => {};
+      } catch (err) {
+        console.warn('[Firebase Actuators EventSource Init Error]', err);
       }
     }
 
@@ -1621,6 +1742,8 @@
       fetchTelemetry(false);
       fetchHistory('24h');
       initFirebaseRealtimeSync();
+      initFirebaseActuatorsSync();
+      fetchActuatorsFromFirebase();
       state.searchResults = [];
       state.searchQuery = '';
       state.isSearching = false;
