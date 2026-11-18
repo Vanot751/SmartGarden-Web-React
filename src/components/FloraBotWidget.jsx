@@ -62,6 +62,10 @@ function formatMarkdown(text) {
 export default function FloraBotWidget({ activePlant, activeTelemetry }) {
   const { isOled } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
+  const [position, setPosition] = useState(null); // { x, y } solo en memoria (vuelve al recargar)
+  const [isDraggingState, setIsDraggingState] = useState(false);
+  const [isOverDropZone, setIsOverDropZone] = useState(false);
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -74,6 +78,72 @@ export default function FloraBotWidget({ activePlant, activeTelemetry }) {
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const dropCircleRef = useRef(null);
+  const dragRef = useRef({ isDragging: false, hasMoved: false, startX: 0, startY: 0, origX: 0, origY: 0 });
+
+  const handlePointerDown = (e) => {
+    if (e.button && e.button !== 0) return;
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragRef.current = {
+      isDragging: true,
+      hasMoved: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: rect.left,
+      origY: rect.top,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+
+  const handlePointerMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    if (!dragRef.current.hasMoved && Math.hypot(dx, dy) > 5) {
+      dragRef.current.hasMoved = true;
+      setIsDraggingState(true);
+    }
+    if (dragRef.current.hasMoved && wrapperRef.current) {
+      const btnW = wrapperRef.current.offsetWidth || 52;
+      const btnH = wrapperRef.current.offsetHeight || 52;
+      const maxLeft = Math.max(10, window.innerWidth - btnW - 10);
+      const maxTop = Math.max(10, window.innerHeight - btnH - 10);
+      const newL = Math.max(10, Math.min(dragRef.current.origX + dx, maxLeft));
+      const newT = Math.max(10, Math.min(dragRef.current.origY + dy, maxTop));
+      setPosition({ x: newL, y: newT });
+
+      if (dropCircleRef.current) {
+        const dropRect = dropCircleRef.current.getBoundingClientRect();
+        const bubbleCenterX = newL + btnW / 2;
+        const bubbleCenterY = newT + btnH / 2;
+        const dropCenterX = dropRect.left + dropRect.width / 2;
+        const dropCenterY = dropRect.top + dropRect.height / 2;
+        const dist = Math.hypot(bubbleCenterX - dropCenterX, bubbleCenterY - dropCenterY);
+        setIsOverDropZone(dist < 80);
+      }
+    }
+  };
+
+  const handlePointerUp = (e) => {
+    if (!dragRef.current.isDragging) return;
+    dragRef.current.isDragging = false;
+    setIsDraggingState(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+    if (dragRef.current.hasMoved) {
+      if (isOverDropZone) {
+        setIsDismissed(true);
+      }
+    } else {
+      setIsOpen(true);
+    }
+    setIsOverDropZone(false);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -161,39 +231,77 @@ export default function FloraBotWidget({ activePlant, activeTelemetry }) {
 
   const subtitleText = activePlant?.name ? `Asesorando: ${activePlant.name}` : 'Asesor Botánico Inteligente';
 
+  if (isDismissed) return null;
+
+  const wrapperStyle = position
+    ? { left: `${position.x}px`, top: `${position.y}px`, right: 'auto', bottom: 'auto' }
+    : undefined;
+
   return (
     <>
-      {/* Botón Flotante (FAB Circular estilizado con centrífuga) */}
-      <div className="fixed bottom-20 sm:bottom-20 right-4 sm:right-6 z-50 group flex items-center justify-center">
-        {/* Tooltip elegante flotante en escritorio */}
-        <span className="hidden sm:block absolute right-full mr-3 px-2.5 py-1 bg-[#181818]/95 border border-[#333333] text-white text-[11px] font-semibold rounded-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
-          FloraBot IA
-        </span>
-
-        {!isOpen && (
-          <button
-            id="florabot-launcher-button"
-            onClick={() => setIsOpen(true)}
-            aria-label="Abrir asistente botánico inteligente FloraBot"
-            title="FloraBot IA • Asesor Botánico"
-            className="relative florabot-hop w-12 h-12 sm:w-13 sm:h-13 bg-gradient-to-tr from-[#27AE60] to-[#2ECC71] text-white rounded-full shadow-lg hover:shadow-2xl hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer border border-white/20 backdrop-blur-xs"
+      {/* Botón Flotante Arrastrable Estilo Android */}
+      {!isOpen && (
+        <>
+          <div 
+            ref={wrapperRef}
+            style={wrapperStyle}
+            className={`fixed ${position ? '' : 'bottom-20 sm:bottom-20 right-4 sm:right-6'} z-50 group flex items-center justify-center touch-none select-none transition-transform`}
           >
-            <div className="relative flex items-center justify-center">
-              <Sprout className="w-6 h-6 text-white transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white shadow-xs"></span>
-              </span>
-            </div>
+            {/* Tooltip elegante flotante en escritorio */}
+            <span className="hidden sm:block absolute right-full mr-3 px-2.5 py-1 bg-[#181818]/95 border border-[#333333] text-white text-[11px] font-semibold rounded-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
+              FloraBot IA
+            </span>
 
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -left-1 px-1.5 py-0.5 bg-amber-400 text-stone-900 text-[10px] font-bold rounded-full shadow-md">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-        )}
-      </div>
+            <button
+              id="florabot-launcher-button"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              aria-label="Abrir asistente botánico inteligente FloraBot"
+              title="FloraBot IA"
+              style={{
+                transform: isOverDropZone ? 'scale(0.82)' : undefined,
+                opacity: isOverDropZone ? 0.7 : 1,
+              }}
+              className="relative florabot-hop w-12 h-12 sm:w-13 sm:h-13 bg-gradient-to-tr from-[#27AE60] to-[#2ECC71] text-white rounded-full shadow-lg hover:shadow-2xl hover:scale-110 active:scale-95 transition-shadow duration-300 flex items-center justify-center cursor-grab active:cursor-grabbing border border-white/20 backdrop-blur-xs"
+            >
+              <div className="relative flex items-center justify-center pointer-events-none">
+                <Sprout className="w-6 h-6 text-white transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white shadow-xs"></span>
+                </span>
+              </div>
+
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -left-1 px-1.5 py-0.5 bg-amber-400 text-stone-900 text-[10px] font-bold rounded-full shadow-md">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Zona de Descarte Estilo Burbujas Flotantes de Android (X Inferior) */}
+          <div 
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none transition-all duration-300 flex flex-col items-center gap-1.5 select-none ${
+              isDraggingState ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+            }`}
+          >
+            <div 
+              ref={dropCircleRef}
+              className={`w-14 h-14 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-2xl border-2 border-white/40 backdrop-blur-md transition-all duration-200 ${
+                isOverDropZone ? 'scale-125 bg-red-700 ring-4 ring-red-400/60' : ''
+              }`}
+            >
+              <X className="w-7 h-7 stroke-[2.5]" />
+            </div>
+            <span className="text-[11px] font-semibold text-white/90 bg-black/60 px-2.5 py-0.5 rounded-full backdrop-blur-xs shadow-md">
+              Arrastra aquí para cerrar
+            </span>
+          </div>
+        </>
+      )}
 
       {/* Ventana de Chat Flotante Mejorada y Más Amplia */}
       {isOpen && (

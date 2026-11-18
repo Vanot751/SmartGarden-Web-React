@@ -4478,6 +4478,165 @@
     // ==========================================
     // FLORABOT: ASISTENTE BOTÁNICO INTELIGENTE (GROQ LLM)
     // ==========================================
+    let floraBotPosition = null; // { x, y } en memoria (se reinicia al recargar la página)
+    let floraBotDismissed = false; // en memoria (se reinicia al recargar la página)
+
+    function dismissFloraBot(e) {
+      if (e) e.stopPropagation();
+      floraBotDismissed = true;
+      const container = document.getElementById('florabot-widget-container');
+      if (container) container.innerHTML = '';
+    }
+
+    function attachFloraBotDragEvents() {
+      const wrapper = document.getElementById('florabot-launcher-wrapper');
+      const button = document.getElementById('florabot-launcher-button');
+      const dropTarget = document.getElementById('florabot-drop-target');
+      const dropCircle = document.getElementById('florabot-drop-circle');
+      if (!wrapper || !button) return;
+
+      // Restaurar posición en memoria si el usuario lo movió previamente en esta sesión
+      if (floraBotPosition) {
+        const btnW = wrapper.offsetWidth || 52;
+        const btnH = wrapper.offsetHeight || 52;
+        const maxL = Math.max(12, window.innerWidth - btnW - 12);
+        const maxT = Math.max(12, window.innerHeight - btnH - 12);
+        const curL = Math.max(12, Math.min(floraBotPosition.x, maxL));
+        const curT = Math.max(12, Math.min(floraBotPosition.y, maxT));
+        wrapper.style.left = `${curL}px`;
+        wrapper.style.top = `${curT}px`;
+        wrapper.style.right = 'auto';
+        wrapper.style.bottom = 'auto';
+      }
+
+      let isDragging = false;
+      let hasMoved = false;
+      let isOverDrop = false;
+      let startPointerX = 0;
+      let startPointerY = 0;
+      let startWrapperLeft = 0;
+      let startWrapperTop = 0;
+
+      function onPointerDown(e) {
+        if (e.button && e.button !== 0) return;
+
+        isDragging = true;
+        hasMoved = false;
+        isOverDrop = false;
+        startPointerX = e.clientX;
+        startPointerY = e.clientY;
+
+        const rect = wrapper.getBoundingClientRect();
+        startWrapperLeft = rect.left;
+        startWrapperTop = rect.top;
+
+        try {
+          button.setPointerCapture(e.pointerId);
+        } catch (_) {}
+      }
+
+      function onPointerMove(e) {
+        if (!isDragging) return;
+        const dx = e.clientX - startPointerX;
+        const dy = e.clientY - startPointerY;
+
+        if (!hasMoved && Math.hypot(dx, dy) > 5) {
+          hasMoved = true;
+          button.classList.remove('florabot-hop');
+          wrapper.style.right = 'auto';
+          wrapper.style.bottom = 'auto';
+
+          // Mostrar la zona de descarte estilo burbujas de Android en la parte inferior
+          if (dropTarget) {
+            dropTarget.classList.remove('opacity-0', 'scale-75', 'pointer-events-none');
+            dropTarget.classList.add('opacity-100', 'scale-100');
+          }
+        }
+
+        if (hasMoved) {
+          const btnW = wrapper.offsetWidth || 52;
+          const btnH = wrapper.offsetHeight || 52;
+          const maxLeft = Math.max(10, window.innerWidth - btnW - 10);
+          const maxTop = Math.max(10, window.innerHeight - btnH - 10);
+
+          let newL = Math.max(10, Math.min(startWrapperLeft + dx, maxLeft));
+          let newT = Math.max(10, Math.min(startWrapperTop + dy, maxTop));
+
+          wrapper.style.left = `${newL}px`;
+          wrapper.style.top = `${newT}px`;
+          floraBotPosition = { x: newL, y: newT };
+
+          // Detectar cercanía magnética al botón X inferior (estilo Android)
+          if (dropCircle) {
+            const dropRect = dropCircle.getBoundingClientRect();
+            const bubbleCenterX = newL + btnW / 2;
+            const bubbleCenterY = newT + btnH / 2;
+            const dropCenterX = dropRect.left + dropRect.width / 2;
+            const dropCenterY = dropRect.top + dropRect.height / 2;
+
+            const dist = Math.hypot(bubbleCenterX - dropCenterX, bubbleCenterY - dropCenterY);
+            if (dist < 80) {
+              isOverDrop = true;
+              dropCircle.classList.add('scale-125', 'bg-red-700', 'ring-4', 'ring-red-400/60');
+              button.style.transform = 'scale(0.85)';
+              button.style.opacity = '0.7';
+            } else {
+              isOverDrop = false;
+              dropCircle.classList.remove('scale-125', 'bg-red-700', 'ring-4', 'ring-red-400/60');
+              button.style.transform = '';
+              button.style.opacity = '';
+            }
+          }
+        }
+      }
+
+      function onPointerUp(e) {
+        if (!isDragging) return;
+        isDragging = false;
+
+        try {
+          button.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+
+        // Ocultar zona de descarte
+        if (dropTarget) {
+          dropTarget.classList.remove('opacity-100', 'scale-100');
+          dropTarget.classList.add('opacity-0', 'scale-75', 'pointer-events-none');
+        }
+        if (dropCircle) {
+          dropCircle.classList.remove('scale-125', 'bg-red-700', 'ring-4', 'ring-red-400/60');
+        }
+        button.style.transform = '';
+        button.style.opacity = '';
+
+        if (hasMoved) {
+          if (isOverDrop) {
+            // Animación de succión y cierre estilo Android
+            wrapper.style.transition = 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
+            wrapper.style.transform = 'scale(0) translateY(40px)';
+            wrapper.style.opacity = '0';
+            setTimeout(() => {
+              dismissFloraBot();
+            }, 220);
+          } else {
+            // Reanudar la animación de saltito al soltarlo en una nueva posición
+            setTimeout(() => {
+              if (!floraBotState.isOpen) {
+                button.classList.add('florabot-hop');
+              }
+            }, 350);
+          }
+        } else {
+          toggleFloraBot();
+        }
+      }
+
+      button.addEventListener('pointerdown', onPointerDown);
+      button.addEventListener('pointermove', onPointerMove);
+      button.addEventListener('pointerup', onPointerUp);
+      button.addEventListener('pointercancel', onPointerUp);
+    }
+
     const floraBotState = {
       isOpen: false,
       isThinking: false,
@@ -4583,8 +4742,8 @@
       const container = document.getElementById('florabot-widget-container');
       if (!container) return;
 
-      // Solo mostrar cuando el usuario está logueado en el dashboard
-      if (!state.token) {
+      // Solo mostrar cuando el usuario está logueado en el dashboard y no lo ha cerrado
+      if (floraBotDismissed || !state.token) {
         container.innerHTML = '';
         return;
       }
@@ -4599,20 +4758,22 @@
 
       if (!floraBotState.isOpen) {
         container.innerHTML = `
-          <div class="fixed bottom-20 sm:bottom-20 right-4 sm:right-6 z-50 group flex items-center justify-center">
-            <!-- Tooltip elegante flotante en escritorio (estático sin girar) -->
+          <div 
+            id="florabot-launcher-wrapper" 
+            class="fixed ${floraBotPosition ? '' : 'bottom-20 sm:bottom-20 right-4 sm:right-6'} z-50 group flex items-center justify-center touch-none select-none transition-transform"
+          >
+            <!-- Tooltip elegante flotante en escritorio -->
             <span class="hidden sm:block absolute right-full mr-3 px-2.5 py-1 bg-[#181818]/95 border border-[#333333] text-white text-[11px] font-semibold rounded-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
               FloraBot IA
             </span>
 
             <button
               id="florabot-launcher-button"
-              onclick="toggleFloraBot()"
               aria-label="Abrir asistente botánico inteligente FloraBot"
-              title="FloraBot IA • Asesor Botánico"
-              class="relative florabot-hop w-12 h-12 sm:w-13 sm:h-13 bg-gradient-to-tr from-[#27AE60] to-[#2ECC71] text-white rounded-full shadow-lg hover:shadow-2xl hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer border border-white/20 backdrop-blur-xs"
+              title="FloraBot IA"
+              class="relative florabot-hop w-12 h-12 sm:w-13 sm:h-13 bg-gradient-to-tr from-[#27AE60] to-[#2ECC71] text-white rounded-full shadow-lg hover:shadow-2xl hover:scale-110 active:scale-95 transition-shadow duration-300 flex items-center justify-center cursor-grab active:cursor-grabbing border border-white/20 backdrop-blur-xs"
             >
-              <div class="relative flex items-center justify-center">
+              <div class="relative flex items-center justify-center pointer-events-none">
                 <i data-lucide="sprout" class="w-6 h-6 text-white transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110"></i>
                 <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75"></span>
@@ -4621,8 +4782,25 @@
               </div>
             </button>
           </div>
+
+          <!-- Zona de Descarte Estilo Burbujas Flotantes de Android (X Inferior) -->
+          <div 
+            id="florabot-drop-target" 
+            class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none transition-all duration-300 opacity-0 scale-75 flex flex-col items-center gap-1.5 select-none"
+          >
+            <div 
+              id="florabot-drop-circle" 
+              class="w-14 h-14 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-2xl border-2 border-white/40 backdrop-blur-md transition-all duration-200"
+            >
+              <i data-lucide="x" class="w-7 h-7 stroke-[2.5]"></i>
+            </div>
+            <span class="text-[11px] font-semibold text-white/90 bg-black/60 px-2.5 py-0.5 rounded-full backdrop-blur-xs shadow-md">
+              Arrastra aquí para cerrar
+            </span>
+          </div>
         `;
         lucide.createIcons();
+        attachFloraBotDragEvents();
         return;
       }
 
