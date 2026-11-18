@@ -1154,15 +1154,85 @@
         'smartgarden-mandarino': '/plants/mandarino.jpg',
         'smartgarden-palto': '/plants/palto.jpg',
         'smartgarden-higuera': '/plants/higuera.jpg',
-        'smartgarden-olivo': '/plants/olivo.jpg'
+        'smartgarden-olivo': '/plants/olivo.jpg',
+        'smartgarden-ciruelo': '/plants/ciruelo.jpg',
+        'smartgarden-ciruelo-pissard': '/plants/ciruelo.jpg',
+        'smartgarden-cerezo': '/plants/cerezo.jpg',
+        'smartgarden-duraznero': '/plants/duraznero.jpg',
+        'smartgarden-damasco': '/plants/damasco.jpg',
+        'smartgarden-vid': '/plants/vid.jpg',
+        'smartgarden-arandano': '/plants/arandano.jpg',
+        'smartgarden-frambueso': '/plants/frambueso.jpg',
+        'smartgarden-kumquat': '/plants/kumquat.jpg',
+        'smartgarden-granado': '/plants/granado.jpg',
+        'smartgarden-manzano': '/plants/manzano.jpg',
+        'smartgarden-peral': '/plants/peral.jpg',
+        'smartgarden-nispero': '/plants/nispero.jpg',
+        'smartgarden-feijoa': '/plants/feijoa.jpg',
+        'smartgarden-zarzamora': '/plants/zarzamora.jpg',
+        'smartgarden-albahaca': '/plants/albahaca.jpg',
+        'smartgarden-menta': '/plants/menta.jpg',
+        'smartgarden-hierbabuena': '/plants/menta.jpg',
+        'smartgarden-melisa': '/plants/menta.jpg',
+        'smartgarden-poleo': '/plants/menta.jpg',
+        'smartgarden-romero': '/plants/romero.jpg',
+        'smartgarden-cedron': '/plants/romero.jpg',
+        'smartgarden-ruda': '/plants/romero.jpg',
+        'smartgarden-boldo': '/plants/romero.jpg',
+        'smartgarden-bailahuen': '/plants/romero.jpg',
+        'smartgarden-oregano': '/plants/oregano.jpg',
+        'smartgarden-cilantro': '/plants/cilantro.jpg',
+        'smartgarden-perejil': '/plants/perejil.jpg',
+        'smartgarden-lavanda-francesa': '/plants/lavanda2.jpg',
+        'smartgarden-hortensia': '/plants/lavanda2.jpg',
+        'smartgarden-cardenal': '/plants/lavanda2.jpg',
+        'smartgarden-bugambilia': '/plants/lavanda2.jpg',
+        'smartgarden-astromelia': '/plants/lavanda2.jpg',
+        'smartgarden-pensamiento': '/plants/lavanda2.jpg',
+        'smartgarden-dalia': '/plants/lavanda2.jpg',
+        'smartgarden-calendula': '/plants/lavanda2.jpg',
+        'smartgarden-alheli': '/plants/lavanda2.jpg',
+        'smartgarden-copihue': '/plants/lavanda2.jpg',
+        'smartgarden-chilco': '/plants/lavanda2.jpg',
+        'smartgarden-clavel': '/plants/lavanda2.jpg',
+        'smartgarden-espuela-galan': '/plants/lavanda2.jpg',
+        'smartgarden-reina-luisa': '/plants/lavanda2.jpg',
+        'smartgarden-camelia': '/plants/lavanda2.jpg',
+        'smartgarden-corona-inca': '/plants/lavanda2.jpg',
+        'smartgarden-conejito': '/plants/lavanda2.jpg',
+        'smartgarden-abutilon': '/plants/lavanda2.jpg',
+        'smartgarden-mio-mio': '/plants/olivo.jpg',
+        'smartgarden-jade': '/plants/olivo.jpg',
+        'smartgarden-veronica': '/plants/olivo.jpg',
+        'smartgarden-pitosporo': '/plants/olivo.jpg',
+        'smartgarden-cotoneaster': '/plants/olivo.jpg',
+        'smartgarden-liquidambar': '/plants/olivo.jpg',
+        'smartgarden-jacaranda': '/plants/olivo.jpg',
+        'smartgarden-quillay': '/plants/olivo.jpg',
+        'smartgarden-peumo': '/plants/olivo.jpg',
+        'smartgarden-maiten': '/plants/olivo.jpg',
+        'smartgarden-arrayan': '/plants/olivo.jpg',
+        'smartgarden-aromo': '/plants/olivo.jpg',
+        'smartgarden-palma-chilena': '/plants/olivo.jpg'
       };
+      const cleanId = String(speciesId || '').toLowerCase().trim();
+      let matchedImage = localImages[cleanId];
+      if (!matchedImage) {
+        for (const [key, path] of Object.entries(localImages)) {
+          const baseName = key.replace('smartgarden-', '');
+          if (cleanId.includes(baseName) || baseName.includes(cleanId.replace('smartgarden-', ''))) {
+            matchedImage = path;
+            break;
+          }
+        }
+      }
       const catalogPlant = state.searchResults.find(
         (plant) => String(plant.id) === String(speciesId)
       );
       return {
         nombre: catalogPlant?.nombre_comun,
         especie: catalogPlant?.especie,
-        imagen_url: catalogPlant?.imagen_url || localImages[String(speciesId)] || '/SmartGarden.png',
+        imagen_url: catalogPlant?.imagen_url || matchedImage || '/SmartGarden.png',
         temp_min: catalogPlant?.temp_min,
         temp_max: catalogPlant?.temp_max,
         humedad_min: catalogPlant?.humedad_min,
