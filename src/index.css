@@ -41,3 +41,36 @@ input {
   animation: spinSingleTurn 0.75s cubic-bezier(0.25, 1, 0.5, 1) 1 forwards !important;
   transform-origin: center;
 }
+
+@keyframes floraBotSpinHop {
+  0%, 55%, 100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  60% {
+    transform: translateY(2px) rotate(-15deg) scale(0.96);
+  }
+  68% {
+    transform: translateY(-16px) rotate(180deg) scale(1.1);
+  }
+  76% {
+    transform: translateY(-6px) rotate(360deg) scale(1.04);
+  }
+  82% {
+    transform: translateY(0) rotate(360deg) scale(0.95);
+  }
+  88% {
+    transform: translateY(-4px) rotate(360deg) scale(1.02);
+  }
+  94% {
+    transform: translateY(0) rotate(360deg) scale(1);
+  }
+}
+
+.florabot-hop {
+  animation: floraBotSpinHop 5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  transform-origin: center center;
+}
+
+.florabot-hop:hover {
+  animation-play-state: paused;
+}

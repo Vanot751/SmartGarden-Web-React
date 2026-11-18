@@ -163,25 +163,31 @@ export default function FloraBotWidget({ activePlant, activeTelemetry }) {
 
   return (
     <>
-      {/* Botón Flotante (FAB) */}
-      <div className="fixed bottom-6 right-6 z-50">
+      {/* Botón Flotante (FAB Circular estilizado con centrífuga) */}
+      <div className="fixed bottom-20 sm:bottom-20 right-4 sm:right-6 z-50 group flex items-center justify-center">
+        {/* Tooltip elegante flotante en escritorio */}
+        <span className="hidden sm:block absolute right-full mr-3 px-2.5 py-1 bg-[#181818]/95 border border-[#333333] text-white text-[11px] font-semibold rounded-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
+          FloraBot IA
+        </span>
+
         {!isOpen && (
           <button
+            id="florabot-launcher-button"
             onClick={() => setIsOpen(true)}
             aria-label="Abrir asistente botánico inteligente FloraBot"
-            className="group relative flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-[#2ECC71] to-[#27AE60] text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
+            title="FloraBot IA • Asesor Botánico"
+            className="relative florabot-hop w-12 h-12 sm:w-13 sm:h-13 bg-gradient-to-tr from-[#27AE60] to-[#2ECC71] text-white rounded-full shadow-lg hover:shadow-2xl hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer border border-white/20 backdrop-blur-xs"
           >
-            <div className="relative">
-              <Sprout className="w-5 h-5 text-white transition-transform duration-300 group-hover:rotate-12" />
-              <span className="absolute -top-1 -right-1 flex h-2 w-2">
+            <div className="relative flex items-center justify-center">
+              <Sprout className="w-6 h-6 text-white transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white shadow-xs"></span>
               </span>
             </div>
-            <span className="font-semibold text-xs tracking-wide">FloraBot IA</span>
 
             {unreadCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-amber-400 text-stone-900 text-[10px] font-bold rounded-full">
+              <span className="absolute -top-1 -left-1 px-1.5 py-0.5 bg-amber-400 text-stone-900 text-[10px] font-bold rounded-full shadow-md">
                 {unreadCount}
               </span>
             )}
