@@ -21,7 +21,23 @@ y es la única fuente de verdad para autenticación, módulos, plantas y telemet
 - `GET /api/user-plants/`, `POST /api/user-plants/` y `DELETE /api/user-plants/<id>/`: plantas asignadas a sus módulos.
 - `GET /api/telemetry/?module=<id>` y `POST /api/modules/<id>/telemetry/`: lecturas históricas y en tiempo real del módulo.
 - `GET /api/plants/search/?q=<query>`: catálogo botánico de especies y umbrales fisiológicos.
+- `POST /api/chat/`: consultoría agronómica inteligente 24/7 mediante FloraBot IA.
 
-La búsqueda de especies y la ingesta de telemetría son responsabilidades de
+## Módulos y Experiencia de Usuario Avanzada
+
+1. **FloraBot IA (Asistente Agronómico Conversacional):**
+   - Consume `POST /api/chat/` transmitiendo la telemetría viva de la maceta seleccionada (humedad de sustrato, temperatura ambiente, radiación solar y umbrales botánicos).
+   - Renderizado adaptativo dual: ventana flotante compacta en escritorio (`bottom-6 right-6 w-[440px]`) y hoja inferior (*Bottom Sheet*) deslizante del 85% de altura en móviles (`h-[85vh]`) con fondo difuminado y manija táctil superior.
+   - Formateo enriquecido con Marked.js: tablas con cabecera verde continua (`border-collapse: separate`) y chips táctiles para preguntas rápidas.
+
+2. **Guía Interactiva (Onboarding Tour 6 Pasos):**
+   - Recorrido paso a paso con efecto *spotlight* rojo neón pulsante (`tourRedPulse`) y fondo atenuado al 85% con `backdrop-filter: blur(6px)`.
+   - Ajuste responsivo: lateral inteligente en computadores y hoja inferior con auto-desplazamiento compensado en móviles (`top - 70px`).
+
+3. **Navegación Móvil con Menú Hamburguesa Animado:**
+   - Despliegue y contracción suave con CSS Grid físico (`grid-template-rows: 0fr ➔ 1fr`).
+   - Opciones táctiles para cambio de tema (OLED / Pastel), Guía Interactiva, refresco de sensores y cierre de sesión.
+
+La búsqueda de especies, la ingesta de telemetría y el procesamiento de IA son responsabilidades de
 API-Django. React no contiene claves de servicios externos ni implementa
 modelos o migraciones Django.
