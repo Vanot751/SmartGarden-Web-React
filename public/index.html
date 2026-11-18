@@ -148,6 +148,83 @@
       }
     }
 
+    /* Animaciones de Maximizar / Minimizar ventana de FloraBot */
+    .florabot-maximize-anim {
+      animation: florabotMaximize 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      transform-origin: bottom right;
+      will-change: transform, opacity;
+    }
+
+    .florabot-minimizing {
+      animation: florabotMinimize 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+      transform-origin: bottom right;
+      will-change: transform, opacity;
+    }
+
+    .florabot-backdrop-fadeout {
+      animation: florabotBackdropOut 0.2s ease-in forwards !important;
+    }
+
+    @keyframes florabotMaximize {
+      0% {
+        opacity: 0;
+        transform: scale(0.35) translateY(40px);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    @keyframes florabotMinimize {
+      0% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(0.3) translateY(50px);
+      }
+    }
+
+    @keyframes florabotBackdropOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+
+    @media (max-width: 639px) {
+      .florabot-maximize-anim {
+        transform-origin: bottom center;
+        animation: florabotMaximizeMobile 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      .florabot-minimizing {
+        transform-origin: bottom center;
+        animation: florabotMinimizeMobile 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+      }
+    }
+
+    @keyframes florabotMaximizeMobile {
+      0% {
+        opacity: 0;
+        transform: translateY(100%);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes florabotMinimizeMobile {
+      0% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(100%);
+      }
+    }
+
     body {
       font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
       transition: background-color 0.3s ease, color 0.3s ease;
@@ -4648,15 +4725,30 @@
       ]
     };
 
+    function closeFloraBot() {
+      if (!floraBotState.isOpen) return;
+      const panel = document.getElementById('florabot-dialog-panel');
+      const backdrop = document.getElementById('florabot-dialog-backdrop');
+      if (panel) panel.classList.add('florabot-minimizing');
+      if (backdrop) backdrop.classList.add('florabot-backdrop-fadeout');
+
+      setTimeout(() => {
+        floraBotState.isOpen = false;
+        renderFloraBot();
+      }, 220);
+    }
+
     function toggleFloraBot() {
-      floraBotState.isOpen = !floraBotState.isOpen;
-      renderFloraBot();
       if (floraBotState.isOpen) {
+        closeFloraBot();
+      } else {
+        floraBotState.isOpen = true;
+        renderFloraBot();
         setTimeout(() => {
           const input = document.getElementById('florabot-input');
           if (input) input.focus();
           scrollFloraBotToBottom();
-        }, 120);
+        }, 150);
       }
     }
 
@@ -4896,18 +4988,20 @@
       container.innerHTML = `
         <!-- Telón de fondo translúcido solo en móvil para enfocar el chat y cerrar al tocar fuera -->
         <div 
-          onclick="toggleFloraBot()" 
+          id="florabot-dialog-backdrop"
+          onclick="closeFloraBot()" 
           class="fixed inset-0 bg-black/55 backdrop-blur-xs z-40 sm:hidden animate-in fade-in duration-200"
           aria-hidden="true"
         ></div>
 
         <aside
+          id="florabot-dialog-panel"
           role="dialog"
           aria-label="Panel de Asistente Botánico Inteligente FloraBot"
-          class="fixed inset-x-0 bottom-0 sm:inset-auto sm:right-6 sm:bottom-6 z-50 w-full sm:w-[440px] h-[85vh] sm:h-[620px] max-h-[100dvh] sm:max-h-[calc(100vh-4rem)] ${modalBg} border-t sm:border border-inherit rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
+          class="fixed inset-x-0 bottom-0 sm:inset-auto sm:right-6 sm:bottom-6 z-50 w-full sm:w-[440px] h-[85vh] sm:h-[620px] max-h-[100dvh] sm:max-h-[calc(100vh-4rem)] ${modalBg} border-t sm:border border-inherit rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden florabot-maximize-anim"
         >
           <!-- Indicador táctil superior (Grab handle) solo en móvil -->
-          <div class="sm:hidden w-full pt-2.5 pb-1 flex justify-center ${headerBg} cursor-pointer select-none" onclick="toggleFloraBot()">
+          <div class="sm:hidden w-full pt-2.5 pb-1 flex justify-center ${headerBg} cursor-pointer select-none" onclick="closeFloraBot()">
             <div class="w-10 h-1 rounded-full ${isOled ? 'bg-neutral-700' : 'bg-neutral-300'}"></div>
           </div>
 
@@ -4946,8 +5040,8 @@
                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
               </button>
               <button
-                onclick="toggleFloraBot()"
-                title="Cerrar"
+                onclick="closeFloraBot()"
+                title="Minimizar y cerrar"
                 class="p-2 rounded-xl transition-colors cursor-pointer ${
                   isOled ? 'text-[#888] hover:text-white hover:bg-[#222]' : 'text-[#64748B] hover:text-[#1E293B] hover:bg-[#E2E8F0]'
                 }"

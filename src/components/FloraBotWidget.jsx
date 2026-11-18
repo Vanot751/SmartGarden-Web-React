@@ -62,6 +62,7 @@ function formatMarkdown(text) {
 export default function FloraBotWidget({ activePlant, activeTelemetry }) {
   const { isOled } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
+  const [isMinimizing, setIsMinimizing] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [position, setPosition] = useState(null); // { x, y } solo en memoria (vuelve al recargar)
   const [isDraggingState, setIsDraggingState] = useState(false);
@@ -81,6 +82,14 @@ export default function FloraBotWidget({ activePlant, activeTelemetry }) {
   const wrapperRef = useRef(null);
   const dropCircleRef = useRef(null);
   const dragRef = useRef({ isDragging: false, hasMoved: false, startX: 0, startY: 0, origX: 0, origY: 0 });
+
+  const handleClose = () => {
+    setIsMinimizing(true);
+    setTimeout(() => {
+      setIsOpen(false);
+      setIsMinimizing(false);
+    }, 220);
+  };
 
   const handlePointerDown = (e) => {
     if (e.button && e.button !== 0) return;
@@ -303,12 +312,14 @@ export default function FloraBotWidget({ activePlant, activeTelemetry }) {
         </>
       )}
 
-      {/* Ventana de Chat Flotante Mejorada y Más Amplia */}
+      {/* Ventana de Chat Flotante Mejorada con Animación Maximizar/Minimizar */}
       {isOpen && (
         <aside
           role="dialog"
           aria-label="Panel de Asistente Botánico Inteligente FloraBot"
-          className={`fixed bottom-6 right-6 z-50 w-[450px] max-w-[calc(100vw-1.5rem)] h-[620px] max-h-[calc(100vh-4rem)] ${modalBg} border rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-5`}
+          className={`fixed bottom-6 right-6 z-50 w-[450px] max-w-[calc(100vw-1.5rem)] h-[620px] max-h-[calc(100vh-4rem)] ${modalBg} border rounded-3xl shadow-2xl flex flex-col overflow-hidden ${
+            isMinimizing ? 'florabot-minimizing' : 'florabot-maximize-anim'
+          }`}
         >
           {/* Cabecera */}
           <div className={`p-4 border-b ${headerBg} flex items-center justify-between`}>
@@ -345,8 +356,8 @@ export default function FloraBotWidget({ activePlant, activeTelemetry }) {
                 <RotateCcw className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setIsOpen(false)}
-                title="Cerrar"
+                onClick={handleClose}
+                title="Minimizar y cerrar"
                 className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                   isOled ? 'text-[#888] hover:text-white hover:bg-[#222]' : 'text-[#64748B] hover:text-[#1E293B] hover:bg-[#E2E8F0]'
                 }`}
