@@ -4645,11 +4645,11 @@
       ];
 
       const chipsHtml = (floraBotState.messages.length <= 2 && !floraBotState.isThinking) ? `
-        <div class="px-3 py-2 border-t ${headerBg} flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        <div class="px-3 py-2 border-t ${headerBg} flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x overscroll-contain">
           ${quickChips.map(chip => `
             <button
               onclick="sendFloraBotMessage('${chip.replace(/'/g, "\\'")}')"
-              class="shrink-0 text-[11px] px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+              class="shrink-0 text-[11px] px-2.5 py-1 rounded-full border transition-all cursor-pointer active:scale-95 ${
                 isOled 
                   ? 'bg-[#1C1C1C] border-[#333] text-[#CCC] hover:border-[#2ECC71] hover:text-[#2ECC71]' 
                   : 'bg-white border-[#E2E8F0] text-[#475569] hover:border-[#2ECC71] hover:text-[#2ECC71]'
@@ -4660,19 +4660,31 @@
       ` : '';
 
       container.innerHTML = `
+        <!-- Telón de fondo translúcido solo en móvil para enfocar el chat y cerrar al tocar fuera -->
+        <div 
+          onclick="toggleFloraBot()" 
+          class="fixed inset-0 bg-black/55 backdrop-blur-xs z-40 sm:hidden animate-in fade-in duration-200"
+          aria-hidden="true"
+        ></div>
+
         <aside
           role="dialog"
           aria-label="Panel de Asistente Botánico Inteligente FloraBot"
-          class="fixed bottom-6 right-6 z-50 w-[450px] max-w-[calc(100vw-1.5rem)] h-[620px] max-h-[calc(100vh-4rem)] ${modalBg} border rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
+          class="fixed inset-x-0 bottom-0 sm:inset-auto sm:right-6 sm:bottom-6 z-50 w-full sm:w-[440px] h-[85vh] sm:h-[620px] max-h-[100dvh] sm:max-h-[calc(100vh-4rem)] ${modalBg} border-t sm:border border-inherit rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
         >
+          <!-- Indicador táctil superior (Grab handle) solo en móvil -->
+          <div class="sm:hidden w-full pt-2.5 pb-1 flex justify-center ${headerBg} cursor-pointer select-none" onclick="toggleFloraBot()">
+            <div class="w-10 h-1 rounded-full ${isOled ? 'bg-neutral-700' : 'bg-neutral-300'}"></div>
+          </div>
+
           <!-- Cabecera -->
-          <div class="p-4 border-b ${headerBg} flex items-center justify-between">
-            <div class="flex items-center gap-3 overflow-hidden">
+          <div class="px-4 py-3 border-b ${headerBg} flex items-center justify-between">
+            <div class="flex items-center gap-3 overflow-hidden min-w-0">
               <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#2ECC71] to-[#27AE60] flex items-center justify-center text-white shadow-md shrink-0">
                 <i data-lucide="sprout" class="w-5 h-5"></i>
               </div>
-              <div class="overflow-hidden">
-                <div className="flex items-center gap-2">
+              <div class="overflow-hidden min-w-0">
+                <div class="flex items-center gap-2">
                   <h3 class="text-sm font-bold tracking-tight ${isOled ? 'text-white' : 'text-[#1E293B]'}">
                     FloraBot
                   </h3>
@@ -4682,18 +4694,18 @@
                 </div>
                 <p 
                   title="${subtitleText.replace(/"/g, '&quot;')}"
-                  class="text-[11px] truncate max-w-[250px] ${isOled ? 'text-[#888]' : 'text-[#64748B]'}"
+                  class="text-[11px] truncate max-w-[200px] sm:max-w-[250px] ${isOled ? 'text-[#888]' : 'text-[#64748B]'}"
                 >
                   ${subtitleText}
                 </p>
               </div>
             </div>
 
-            <div class="flex items-center gap-1 shrink-0">
+            <div class="flex items-center gap-1 shrink-0 ml-2">
               <button
                 onclick="resetFloraBotChat()"
                 title="Reiniciar chat"
-                class="p-1.5 rounded-lg transition-colors cursor-pointer ${
+                class="p-2 rounded-xl transition-colors cursor-pointer ${
                   isOled ? 'text-[#888] hover:text-white hover:bg-[#222]' : 'text-[#64748B] hover:text-[#1E293B] hover:bg-[#E2E8F0]'
                 }"
               >
@@ -4702,7 +4714,7 @@
               <button
                 onclick="toggleFloraBot()"
                 title="Cerrar"
-                class="p-1.5 rounded-lg transition-colors cursor-pointer ${
+                class="p-2 rounded-xl transition-colors cursor-pointer ${
                   isOled ? 'text-[#888] hover:text-white hover:bg-[#222]' : 'text-[#64748B] hover:text-[#1E293B] hover:bg-[#E2E8F0]'
                 }"
               >
@@ -4719,10 +4731,10 @@
           <!-- Chips de Sugerencias -->
           ${chipsHtml}
 
-          <!-- Entrada de Texto -->
+          <!-- Entrada de Texto con soporte safe area -->
           <form 
             onsubmit="event.preventDefault(); sendFloraBotMessage();"
-            class="p-3 border-t ${headerBg} flex items-center gap-2"
+            class="p-3 border-t ${headerBg} flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
           >
             <input
               id="florabot-input"
@@ -4736,7 +4748,7 @@
               type="submit"
               ${floraBotState.isThinking ? 'disabled' : ''}
               aria-label="Enviar mensaje"
-              class="p-2.5 rounded-xl bg-gradient-to-r from-[#2ECC71] to-[#27AE60] text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md"
+              class="p-2.5 rounded-xl bg-gradient-to-r from-[#2ECC71] to-[#27AE60] text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md shrink-0"
             >
               <i data-lucide="send" class="w-4 h-4"></i>
             </button>
