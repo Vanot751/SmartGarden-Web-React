@@ -405,8 +405,11 @@ export default function Login() {
             </div>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-inherit text-center">
-            <p className="text-[11px] text-[#718096]">
+          <div className="mt-8 pt-6 border-t border-inherit text-center space-y-1">
+            <p className="text-[11.5px] font-medium text-[#718096]">
+              © 2026 SmartGarden • Desarrolladores: Alexander Cortés y Angelo Zamora
+            </p>
+            <p className="text-[10.5px] text-[#A0AEC0]">
               Sistema IoT Autónomo • Telemetría UART / RTDB • INACAP 2026
             </p>
           </div>

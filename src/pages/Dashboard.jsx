@@ -867,6 +867,23 @@ export default function Dashboard() {
         />
 
       </main>
+
+      {/* Footer Institucional de la Aplicación (Compacto y estilizado) */}
+      <footer className={`mt-6 border-t py-4 px-4 text-center text-xs text-[#718096] transition-colors select-none ${
+        isOled ? 'border-[#222222] bg-[#0C0C0C]' : 'border-[#D8DCCB] bg-[#F7F5EE]'
+      }`}>
+        <div className="max-w-md mx-auto flex flex-col items-center justify-center text-center space-y-1">
+          {/* Texto Superior: Identidad y Año */}
+          <div className="flex items-center justify-center gap-1.5">
+            <img src="/SmartGarden.png" alt="SmartGarden Logo" className="w-3.5 h-3.5 rounded-xs object-contain opacity-85" />
+            <span className={`font-semibold text-xs tracking-wide ${isOled ? 'text-neutral-300' : 'text-neutral-700'}`}>© 2026 SmartGarden</span>
+          </div>
+          {/* Texto Inferior: Desarrolladores */}
+          <p className="text-[11px] sm:text-[11.5px] text-[#7A7A7A]">
+            Desarrolladores: <span className={`font-medium ${isOled ? 'text-neutral-300' : 'text-neutral-700'}`}>Alexander Cortés</span> y <span className={`font-medium ${isOled ? 'text-neutral-300' : 'text-neutral-700'}`}>Angelo Zamora</span>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
