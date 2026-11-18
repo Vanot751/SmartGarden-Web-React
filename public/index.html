@@ -80,6 +80,41 @@
       font-size: 11.5px !important;
     }
 
+    /* Resaltado animado en rojo neón para cada elemento del Tour Guiado Interactivo */
+    .tour-highlighted-element {
+      position: relative !important;
+      z-index: 85 !important;
+      box-shadow: 0 0 0 3.5px #EF4444, 0 0 35px rgba(239, 68, 68, 0.75) !important;
+      animation: tourRedPulse 1.8s infinite !important;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    /* Efecto especial pulsante rojo para el botón de FloraBot durante el tutorial */
+    .tour-florabot-active {
+      box-shadow: 0 0 0 5px #EF4444, 0 0 35px rgba(239, 68, 68, 0.95) !important;
+      transform: scale(1.1) !important;
+      animation: tourFloraBotPulse 1.5s infinite !important;
+      z-index: 95 !important;
+    }
+
+    @keyframes tourRedPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 3.5px #EF4444, 0 0 25px rgba(239, 68, 68, 0.6), 0 12px 45px rgba(0, 0, 0, 0.85);
+      }
+      50% {
+        box-shadow: 0 0 0 7px rgba(239, 68, 68, 0.4), 0 0 45px rgba(239, 68, 68, 0.95), 0 12px 45px rgba(0, 0, 0, 0.85);
+      }
+    }
+
+    @keyframes tourFloraBotPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 5px #EF4444, 0 0 30px rgba(239, 68, 68, 0.85);
+      }
+      50% {
+        box-shadow: 0 0 0 11px rgba(239, 68, 68, 0.4), 0 0 55px rgba(239, 68, 68, 1);
+      }
+    }
+
     body {
       font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
       transition: background-color 0.3s ease, color 0.3s ease;
@@ -158,6 +193,9 @@
 
   <!-- Contenedor del Asistente Botánico Inteligente FloraBot -->
   <div id="florabot-widget-container"></div>
+
+  <!-- Contenedor del Tour Guiado Interactivo (Onboarding) -->
+  <div id="onboarding-tour-container"></div>
 
   <div id="api-loading-indicator" role="status" aria-live="polite" aria-label="Cargando datos desde la API"
     class="fixed left-1/2 top-5 z-[90] flex items-center gap-3 rounded-2xl border border-[#2ECC71]/40 bg-[#121212]/95 px-4 py-3 text-white shadow-2xl shadow-[#2ECC71]/10 backdrop-blur-md">
@@ -523,6 +561,11 @@
 
         render();
         initDashboardData();
+        setTimeout(() => {
+          if (localStorage.getItem('smartgarden_tour_completed') !== 'true') {
+            startOnboardingTour();
+          }
+        }, 1200);
       } catch (err) {
         console.error('Error login', err);
         const errDetail = err.response?.data?.detail || err.response?.data?.error || '';
@@ -613,6 +656,11 @@
         alert(`¡Bienvenido a SmartGarden, ${state.operator}!\nTu cuenta ha sido creada exitosamente. Tu flota inicia con 0 plantas.`);
         render();
         initDashboardData();
+        setTimeout(() => {
+          if (localStorage.getItem('smartgarden_tour_completed') !== 'true') {
+            startOnboardingTour();
+          }
+        }, 1200);
       } catch (err) {
         console.error('Error registro', err);
         let msg = '';
@@ -2572,6 +2620,14 @@
                 <i data-lucide="${isOled ? 'sun' : 'moon'}" class="w-4 h-4"></i>
               </button>
 
+              <!-- Botón de Guía y Tutorial Interactivo -->
+              <button onclick="startOnboardingTour(true)" aria-label="Ver Guía Rápida Interactiva" title="Tutorial y Guía del Panel" class="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                isOled ? 'bg-[#1A1A1A] border-[#333333] text-[#2ECC71] hover:bg-[#252525]' : 'bg-white border-[#E2E8F0] text-[#2ECC71] hover:bg-[#F0EEE6]'
+              }">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Guía</span>
+              </button>
+
               <!-- Pill Badge API -->
               <div class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
                 isOled ? 'bg-[#121212] border-[#262626] text-[#A0A0A0]' : 'bg-white border-[#E2E8F0] text-[#4A5568]'
@@ -2669,7 +2725,7 @@
           <!-- ====================================================
                1. VISTA DE FLOTA (GRID DE MACETAS DEL OPERADOR)
                ==================================================== -->
-          <section class="${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs">
+          <section id="tour-fleet-section" class="${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
               <div class="flex items-center gap-2.5">
                 <i data-lucide="layout-grid" class="w-5 h-5 text-[#2ECC71]"></i>
@@ -2710,7 +2766,7 @@
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
             
             <!-- Columna Izquierda: GEMELO DIGITAL 3D (Three.js) VINCULADO A MACETA SELECCIONADA -->
-            <div class="lg:col-span-5 ${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div id="tour-twin-section" class="lg:col-span-5 ${cardBg} border rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col justify-between">
               <div>
                 <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
@@ -2873,7 +2929,7 @@
             <div class="lg:col-span-7 space-y-4 sm:space-y-5">
               
               <!-- Rejilla de 3 Sensores Clave -->
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div id="tour-telemetry-section" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 
                 <!-- Temperatura -->
                 <div class="rounded-3xl p-3.5 sm:p-4 border shadow-xs flex flex-col justify-between ${
@@ -2949,7 +3005,7 @@
               </div>
 
               <!-- Telemetría Histórica & Curvas de Tendencia (Amplitud y altura optimizada para visualización clara) -->
-              <div class="${cardBg} border rounded-3xl p-5 shadow-xs">
+              <div id="tour-history-section" class="${cardBg} border rounded-3xl p-5 shadow-xs">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                   <div class="flex items-center gap-2.5">
                     <div class="${isOled ? 'bg-[#1E3325]' : 'bg-[#E8F5E9]'} flex h-9 w-9 items-center justify-center rounded-xl text-[#2ECC71]">
@@ -3256,7 +3312,7 @@
 
       if (state.userPlants.length === 0) {
         container.innerHTML = `
-          <div class="col-span-full p-8 text-center rounded-2xl border border-dashed border-[#E2E8F0] dark:border-[#2A2A2A] text-xs text-[#718096]">
+          <div class="col-span-full p-8 text-center rounded-2xl border border-dashed border-[#E2E8F0] dark:border-[#2A2A2A] text-xs text-[#718096] max-w-xl">
             No tienes macetas registradas aún. Busca una planta en el catálogo inferior para añadirla a tu flota y visualizarla en 3D.
           </div>
         `;
@@ -3736,6 +3792,422 @@
     }
 
     // ==========================================
+    // TOUR TUTORIAL INTERACTIVO (ONBOARDING)
+    // ==========================================
+    const tourState = {
+      active: false,
+      stepIndex: 0
+    };
+
+    const TOUR_STEPS = [
+      {
+        targetId: 'tour-fleet-section',
+        title: 'Flota de Macetas y Catálogo',
+        icon: 'layout-grid',
+        description: 'Supervisa todas las macetas que tienes registradas. Puedes hacer clic en cualquiera de ellas para ver sus métricas específicas o buscar nuevas especies en el catálogo botánico para añadirlas a tu jardín.',
+        actionHint: 'Haz clic en una maceta para inspeccionarla en el Gemelo Digital 3D'
+      },
+      {
+        targetId: 'tour-twin-section',
+        title: 'Gemelo Digital 3D Fisiológico',
+        icon: 'box',
+        description: 'Una representación tridimensional viva de tu planta seleccionada. Refleja su hidratación, vigor y salud según los datos de los sensores. ¡Puedes hacer clic sobre ella y rotarla con el ratón!',
+        actionHint: 'Modelo 3D interactivo en tiempo real'
+      },
+      {
+        targetId: 'tour-telemetry-section',
+        title: 'Métricas de Telemetría IoT en Vivo',
+        icon: 'activity',
+        description: 'Monitorea continuamente los tres signos vitales de la planta: Temperatura ambiente (sensor TMP36), Humedad profunda del sustrato (Higrómetro) y Radiación lumínica solar (fotorresistencia LDR).',
+        actionHint: 'Lecturas continuas de sensores físicos'
+      },
+      {
+        targetId: 'actuators-container',
+        title: 'Actuadores y Dosificación IoT',
+        icon: 'droplets',
+        description: 'Controla el riego de precisión dosificando en mililitros exactos o activa la Parada de Emergencia (E-STOP) para cortar la energía de los actuadores de forma inmediata ante cualquier anomalía.',
+        actionHint: 'Control seguro y dosificación milimétrica'
+      },
+      {
+        targetId: 'tour-history-section',
+        title: 'Historial y Curvas de Tendencia',
+        icon: 'line-chart',
+        description: 'Analiza los gráficos de las últimas 24 horas o 7 días. Te permite verificar si tu planta sufrió de estrés térmico, sequía o exceso de agua a lo largo del día y la noche.',
+        actionHint: 'Supervisión temporal y umbrales biológicos'
+      },
+      {
+        targetId: 'florabot-widget-container',
+        title: 'FloraBot: Asistente Botánico con IA',
+        icon: 'sprout',
+        description: 'Tu consultor agronómico inteligente disponible 24/7 con Flora IA. Pregúntale por diagnóstico de hojas amarillas, plagas o pulsa "¿Cómo está mi planta ahora mismo?" para una auditoría instantánea.',
+        actionHint: 'Consultoría agronómica experta siempre a mano'
+      }
+    ];
+
+    function startOnboardingTour(force = false) {
+      if (!state.token) return;
+      if (!force && localStorage.getItem('smartgarden_tour_completed') === 'true') return;
+
+      tourState.active = true;
+      tourState.stepIndex = 0;
+      renderOnboardingTour();
+    }
+
+    function closeOnboardingTour(markCompleted = true) {
+      tourState.active = false;
+      if (markCompleted) {
+        localStorage.setItem('smartgarden_tour_completed', 'true');
+      }
+      document.querySelectorAll('.tour-highlighted-element').forEach(el => {
+        el.classList.remove('tour-highlighted-element');
+      });
+      document.querySelectorAll('.tour-florabot-active').forEach(el => {
+        el.classList.remove('tour-florabot-active');
+      });
+      const floraBtn = document.getElementById('florabot-launcher-button') || document.querySelector('#florabot-widget-container button');
+      if (floraBtn && floraBtn.parentElement) {
+        floraBtn.parentElement.style.bottom = '';
+        floraBtn.parentElement.style.zIndex = '';
+      }
+      const hand = document.getElementById('tour-florabot-hand');
+      if (hand) hand.remove();
+      const container = document.getElementById('onboarding-tour-container');
+      if (container) container.innerHTML = '';
+    }
+
+    function nextTourStep() {
+      if (tourState.stepIndex < TOUR_STEPS.length - 1) {
+        tourState.stepIndex += 1;
+        renderOnboardingTour();
+      } else {
+        closeOnboardingTour(true);
+      }
+    }
+
+    function prevTourStep() {
+      if (tourState.stepIndex > 0) {
+        tourState.stepIndex -= 1;
+        renderOnboardingTour();
+      }
+    }
+
+    function positionTourCard() {
+      const card = document.getElementById('tour-floating-card');
+      if (!card || !tourState.active) return;
+
+      const currentStep = TOUR_STEPS[tourState.stepIndex];
+      const targetEl = document.getElementById(currentStep.targetId) || document.getElementById('florabot-launcher-button') || document.getElementById('florabot-widget-container');
+      if (!targetEl) return;
+
+      const isMobile = window.innerWidth < 768;
+
+      if (isMobile) {
+        // =============================================================
+        // MODO MÓVIL: Bottom Sheet acoplado a la base de la pantalla
+        // =============================================================
+        card.style.position = 'fixed';
+        card.style.left = '0px';
+        card.style.right = '0px';
+        card.style.top = 'auto';
+        card.style.bottom = '0px';
+        card.style.width = '100%';
+        card.style.maxWidth = '100%';
+        card.style.borderRadius = '24px 24px 0 0';
+        card.style.borderBottom = 'none';
+        card.style.borderLeft = 'none';
+        card.style.borderRight = 'none';
+        card.style.padding = '16px 16px max(18px, env(safe-area-inset-bottom, 18px)) 16px';
+        card.style.boxShadow = '0 -10px 40px rgba(0, 0, 0, 0.65)';
+
+        // Manejo especial de FloraBot en móvil para elevarlo sobre el Bottom Sheet
+        const floraBtn = document.getElementById('florabot-launcher-button') || document.querySelector('#florabot-widget-container button');
+        const hand = document.getElementById('tour-florabot-hand');
+        if (floraBtn && floraBtn.parentElement) {
+          if (currentStep.targetId === 'florabot-widget-container' || currentStep.targetId === 'florabot-launcher-button') {
+            const sheetH = card.offsetHeight || 190;
+            floraBtn.parentElement.style.bottom = `${sheetH + 16}px`;
+            floraBtn.parentElement.style.zIndex = '95';
+            if (hand) {
+              const btnRect = floraBtn.getBoundingClientRect();
+              const handWidth = hand.offsetWidth || 76;
+              const handHeight = hand.offsetHeight || 24;
+              const handLeft = btnRect.left + (btnRect.width / 2) - (handWidth / 2);
+              const handTop = btnRect.top - handHeight - 10;
+              hand.style.left = `${Math.round(handLeft)}px`;
+              hand.style.top = `${Math.round(handTop)}px`;
+              hand.style.bottom = 'auto';
+              hand.style.right = 'auto';
+            }
+          } else {
+            floraBtn.parentElement.style.bottom = '';
+            floraBtn.parentElement.style.zIndex = '';
+          }
+        }
+        return;
+      }
+
+      // Si no es móvil, restaurar elevación normal de FloraBot
+      const floraBtnDesk = document.getElementById('florabot-launcher-button') || document.querySelector('#florabot-widget-container button');
+      if (floraBtnDesk && floraBtnDesk.parentElement) {
+        floraBtnDesk.parentElement.style.bottom = '';
+        floraBtnDesk.parentElement.style.zIndex = '';
+      }
+
+      // =============================================================
+      // MODO ESCRITORIO / WEB (INTACTO EXACTAMENTE COMO ESTÁ)
+      // =============================================================
+      card.style.position = 'fixed';
+      card.style.bottom = 'auto';
+      card.style.right = 'auto';
+      card.style.maxWidth = '';
+      card.style.borderRadius = '';
+      card.style.borderBottom = '';
+      card.style.borderLeft = '';
+      card.style.borderRight = '';
+      card.style.padding = '';
+      card.style.boxShadow = '';
+
+      const rect = targetEl.getBoundingClientRect();
+      const cardWidth = Math.min(320, window.innerWidth - 32);
+      const cardHeight = card.offsetHeight || 205;
+      const margin = 20;
+
+      let top, left;
+
+      switch (currentStep.targetId) {
+        case 'tour-fleet-section':
+          if (window.innerWidth - rect.right >= cardWidth + 12) {
+            left = rect.right + 12;
+          } else {
+            left = window.innerWidth - cardWidth - 16;
+          }
+          top = rect.top + Math.max(10, (rect.height - cardHeight) / 2);
+          break;
+
+        case 'tour-twin-section':
+          left = rect.right + 24;
+          top = rect.top + Math.max(0, (rect.height - cardHeight) / 2);
+          break;
+
+        case 'tour-telemetry-section':
+          left = rect.left - cardWidth - 24;
+          top = rect.top + Math.max(0, (rect.height - cardHeight) / 2);
+          break;
+
+        case 'actuators-container':
+          left = rect.left - cardWidth - 24;
+          top = rect.top + Math.max(0, (rect.height - cardHeight) / 2);
+          break;
+
+        case 'tour-history-section':
+          left = rect.left - cardWidth - 24;
+          top = rect.top + Math.max(0, (rect.height - cardHeight) / 2);
+          break;
+
+        case 'florabot-widget-container':
+        case 'florabot-launcher-button':
+          {
+            const btn = document.getElementById('florabot-launcher-button') || (targetEl ? targetEl.querySelector('button') : null) || targetEl;
+            const btnRect = btn.getBoundingClientRect();
+            left = Math.max(16, btnRect.left - cardWidth - 36);
+            top = Math.max(16, window.innerHeight - cardHeight - 24);
+          }
+          break;
+
+        default:
+          if (rect.left + (rect.width / 2) < window.innerWidth / 2) {
+            left = rect.right + 20;
+          } else {
+            left = rect.left - cardWidth - 20;
+          }
+          top = rect.top + Math.max(0, (rect.height - cardHeight) / 2);
+          break;
+      }
+
+      top = Math.max(16, Math.min(window.innerHeight - cardHeight - 16, top));
+      left = Math.max(16, Math.min(window.innerWidth - cardWidth - 16, left));
+
+      card.style.left = `${Math.round(left)}px`;
+      card.style.top = `${Math.round(top)}px`;
+      card.style.width = `${Math.round(cardWidth)}px`;
+
+      // Centrar exactamente la manito ¡Click! justo arriba del botón de FloraBot (modo escritorio)
+      const hand = document.getElementById('tour-florabot-hand');
+      const floraBtn = document.getElementById('florabot-launcher-button') || document.querySelector('#florabot-widget-container button');
+      if (hand && floraBtn) {
+        const btnRect = floraBtn.getBoundingClientRect();
+        const handWidth = hand.offsetWidth || 78;
+        const handHeight = hand.offsetHeight || 24;
+        const handLeft = btnRect.left + (btnRect.width / 2) - (handWidth / 2);
+        const handTop = btnRect.top - handHeight - 10;
+        hand.style.left = `${Math.round(handLeft)}px`;
+        hand.style.top = `${Math.round(handTop)}px`;
+        hand.style.bottom = 'auto';
+        hand.style.right = 'auto';
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      if (tourState.active) positionTourCard();
+    });
+    window.addEventListener('scroll', () => {
+      if (tourState.active) positionTourCard();
+    }, { passive: true });
+
+    function renderOnboardingTour() {
+      const container = document.getElementById('onboarding-tour-container');
+      if (!container) return;
+
+      if (!tourState.active) {
+        container.innerHTML = '';
+        return;
+      }
+
+      document.querySelectorAll('.tour-highlighted-element').forEach(el => {
+        el.classList.remove('tour-highlighted-element');
+      });
+      document.querySelectorAll('.tour-florabot-active').forEach(el => {
+        el.classList.remove('tour-florabot-active');
+      });
+      const oldHand = document.getElementById('tour-florabot-hand');
+      if (oldHand) oldHand.remove();
+
+      const currentStep = TOUR_STEPS[tourState.stepIndex];
+      const isFloraBotStep = (currentStep.targetId === 'florabot-widget-container' || currentStep.targetId === 'florabot-launcher-button');
+      const targetEl = document.getElementById(currentStep.targetId) || document.getElementById('florabot-launcher-button') || document.getElementById('florabot-widget-container');
+
+      if (targetEl) {
+        targetEl.classList.add('tour-highlighted-element');
+        setTimeout(() => {
+          const isMobile = window.innerWidth < 768;
+          if (isMobile) {
+            if (isFloraBotStep) {
+              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            } else {
+              const rect = targetEl.getBoundingClientRect();
+              const targetY = window.pageYOffset + rect.top - 70;
+              window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+            }
+          } else {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 60);
+      }
+
+      if (isFloraBotStep) {
+        const floraBtn = document.getElementById('florabot-launcher-button') || (targetEl ? targetEl.querySelector('button') : null);
+        if (floraBtn) {
+          floraBtn.classList.add('tour-florabot-active');
+        }
+      }
+
+      const isOled = state.theme === 'oled';
+      const cardBg = isOled ? 'bg-[#161616] border-[#2A2A2A] text-white' : 'bg-white border-[#E2E8F0] text-[#1E293B]';
+      const subBg = isOled ? 'bg-[#1E1E1E] text-[#A0A0A0]' : 'bg-[#F8F9FA] text-[#64748B]';
+      const progressPercent = Math.round(((tourState.stepIndex + 1) / TOUR_STEPS.length) * 100);
+      const isLast = tourState.stepIndex === TOUR_STEPS.length - 1;
+
+      container.innerHTML = `
+        <!-- Fondo oscurecido con spotlight backdrop (oscuro profundo 85% y difuminado de alto contraste) -->
+        <div 
+          id="tour-backdrop" 
+          onclick="closeOnboardingTour(false)"
+          style="background-color: rgba(0, 0, 0, 0.85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);"
+          class="fixed inset-0 z-[80] transition-opacity duration-300"
+        ></div>
+
+        <!-- Banner compacto rojo con manito centrado sobre el botón de FloraBot -->
+        ${isFloraBotStep ? `
+          <div 
+            id="tour-florabot-hand" 
+            class="fixed z-[99] flex items-center justify-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-[#EF4444] to-[#DC2626] text-white font-extrabold text-[11px] shadow-2xl shadow-red-500/40 animate-bounce pointer-events-none transition-all duration-300 tracking-wide border border-white/20"
+          >
+            <span>¡Click!</span>
+            <span class="text-xs">👇</span>
+          </div>
+        ` : ''}
+
+        <!-- Tarjeta Flotante Dinámica (Se posiciona adyacente a cada sección con transición suave) -->
+        <div 
+          id="tour-floating-card"
+          role="dialog"
+          aria-label="Tutorial guiado interactivo"
+          style="transition: top 0.35s cubic-bezier(0.16, 1, 0.3, 1), left 0.35s cubic-bezier(0.16, 1, 0.3, 1);"
+          class="fixed z-[90] ${cardBg} border rounded-3xl shadow-2xl p-4 sm:p-5 flex flex-col gap-3.5 animate-in fade-in zoom-in-95 duration-200"
+        >
+          <!-- Barra de Progreso Superior -->
+          <div>
+            <div class="flex items-center justify-between text-[11px] font-bold mb-1.5">
+              <span class="inline-flex items-center gap-1.5 text-[#2ECC71]">
+                <span class="w-2 h-2 rounded-full bg-[#2ECC71] animate-pulse"></span>
+                Guía Interactiva • Paso ${tourState.stepIndex + 1} de ${TOUR_STEPS.length}
+              </span>
+              <button 
+                onclick="closeOnboardingTour(true)" 
+                title="Omitir tutorial"
+                class="text-[11px] font-semibold text-[#888] hover:text-[#E53E3E] transition-colors cursor-pointer"
+              >
+                Omitir
+              </button>
+            </div>
+            <div class="w-full h-1.5 rounded-full overflow-hidden ${isOled ? 'bg-[#262626]' : 'bg-[#EAEAEA]'}">
+              <div 
+                class="h-full bg-gradient-to-r from-[#2ECC71] to-[#27AE60] transition-all duration-300 rounded-full" 
+                style="width: ${progressPercent}%"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Contenido del Paso -->
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-xl bg-[#2ECC71]/15 text-[#2ECC71] flex items-center justify-center shrink-0">
+              <i data-lucide="${currentStep.icon}" class="w-4 h-4"></i>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-xs sm:text-sm font-bold tracking-tight">
+                ${currentStep.title}
+              </h3>
+              <p class="text-[11.5px] mt-1 leading-relaxed ${isOled ? 'text-[#B0B0B0]' : 'text-[#4A5568]'}">
+                ${currentStep.description}
+              </p>
+              <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-semibold ${subBg}">
+                <i data-lucide="info" class="w-3 h-3 text-[#2ECC71]"></i>
+                <span>${currentStep.actionHint}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botones de Navegación -->
+          <div class="flex items-center justify-between pt-2 border-t border-inherit">
+            <button
+              onclick="prevTourStep()"
+              ${tourState.stepIndex === 0 ? 'disabled style="visibility: hidden;"' : ''}
+              class="px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                isOled ? 'border-[#333] text-[#AAA] hover:bg-[#222]' : 'border-[#E2E8F0] text-[#64748B] hover:bg-[#F1F3EA]'
+              }"
+            >
+              Anterior
+            </button>
+
+            <button
+              onclick="nextTourStep()"
+              class="flex items-center gap-1.5 px-5 py-2.5 bg-gradient-to-r from-[#2ECC71] to-[#27AE60] text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg hover:scale-102 active:scale-98 transition-all cursor-pointer"
+            >
+              <span>${isLast ? '¡Comenzar a Explorar!' : 'Siguiente'}</span>
+              <i data-lucide="${isLast ? 'check' : 'arrow-right'}" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+      `;
+
+      lucide.createIcons();
+      setTimeout(positionTourCard, 60);
+      setTimeout(positionTourCard, 180);
+      setTimeout(positionTourCard, 350);
+      setTimeout(positionTourCard, 600);
+    }
+
+    // ==========================================
     // FLORABOT: ASISTENTE BOTÁNICO INTELIGENTE (GROQ LLM)
     // ==========================================
     const floraBotState = {
@@ -3861,6 +4333,7 @@
         container.innerHTML = `
           <div class="fixed bottom-6 right-6 z-50">
             <button
+              id="florabot-launcher-button"
               onclick="toggleFloraBot()"
               aria-label="Abrir asistente botánico inteligente FloraBot"
               class="group relative flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-[#2ECC71] to-[#27AE60] text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
@@ -4080,6 +4553,11 @@
       render();
       if (state.token) {
         initDashboardData();
+        setTimeout(() => {
+          if (localStorage.getItem('smartgarden_tour_completed') !== 'true') {
+            startOnboardingTour();
+          }
+        }, 1200);
       }
     });
   </script>
