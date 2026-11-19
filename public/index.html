@@ -97,6 +97,16 @@
       z-index: 95 !important;
     }
 
+    /* Ocultar tooltip flotante de FloraBot mientras la guía interactiva esté abierta */
+    body.tour-active #florabot-tooltip,
+    .tour-active #florabot-tooltip,
+    .tour-active #florabot-launcher-wrapper span {
+      display: none !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
     @keyframes tourRedPulse {
       0%, 100% {
         box-shadow: 0 0 0 3.5px #EF4444, 0 0 25px rgba(239, 68, 68, 0.6), 0 12px 45px rgba(0, 0, 0, 0.85);
@@ -4283,11 +4293,14 @@
 
       tourState.active = true;
       tourState.stepIndex = 0;
+      document.body.classList.add('tour-active');
+      renderFloraBot();
       renderOnboardingTour();
     }
 
     function closeOnboardingTour(markCompleted = true) {
       tourState.active = false;
+      document.body.classList.remove('tour-active');
       if (markCompleted) {
         localStorage.setItem('smartgarden_tour_completed', 'true');
       }
@@ -4306,6 +4319,7 @@
       if (hand) hand.remove();
       const container = document.getElementById('onboarding-tour-container');
       if (container) container.innerHTML = '';
+      renderFloraBot();
     }
 
     function nextTourStep() {
@@ -4948,20 +4962,23 @@
       const inputBg = isOled ? 'bg-[#161616] border-[#333333] text-white placeholder-[#777]' : 'bg-white border-[#CBD5E1] text-[#1E293B] placeholder-[#94A3B8]';
 
       if (!floraBotState.isOpen) {
+        const isTourActive = typeof tourState !== 'undefined' && tourState.active;
         container.innerHTML = `
           <div 
             id="florabot-launcher-wrapper" 
             class="fixed ${floraBotPosition ? '' : 'bottom-20 sm:bottom-20 right-4 sm:right-6'} z-50 group flex items-center justify-center touch-none select-none transition-transform"
           >
-            <!-- Tooltip elegante flotante en escritorio -->
-            <span class="hidden sm:block absolute right-full mr-3 px-2.5 py-1 bg-[#181818]/95 border border-[#333333] text-white text-[11px] font-semibold rounded-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
+            <!-- Tooltip elegante flotante en escritorio (oculto completamente durante la guía interactiva) -->
+            ${isTourActive ? '' : `
+            <span id="florabot-tooltip" class="hidden sm:block absolute right-full mr-3 px-2.5 py-1 bg-[#181818]/95 border border-[#333333] text-white text-[11px] font-semibold rounded-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
               FloraBot IA
             </span>
+            `}
 
             <button
               id="florabot-launcher-button"
               aria-label="Abrir asistente botánico inteligente FloraBot"
-              title="FloraBot IA"
+              title="${isTourActive ? '' : 'FloraBot IA'}"
               class="relative florabot-hop florabot-neon-glow w-12 h-12 sm:w-13 sm:h-13 bg-gradient-to-tr from-[#27AE60] to-[#2ECC71] text-white rounded-full hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-xs"
             >
               <div class="relative flex items-center justify-center pointer-events-none">
