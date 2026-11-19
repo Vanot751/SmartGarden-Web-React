@@ -1996,11 +1996,95 @@
         closePlantModal();
         clearPlantSearch();
         await fetchUserPlants();
-        alert(`¡Maceta "${payload.apodo}" agregada con éxito a tu flota!`);
+        showFleetSuccessModal(payload.apodo);
       } catch (err) {
         console.error('Error al guardar la maceta', err);
         const detail = err.response?.data?.detail || err.response?.data?.mac_address?.[0] || err.response?.data?.module?.[0];
         alert(detail || 'Error al guardar la maceta. Intenta nuevamente.');
+      }
+    }
+
+    function showFleetSuccessModal(apodo) {
+      const existing = document.getElementById('fleet-success-modal-container');
+      if (existing) existing.remove();
+
+      const isOled = state.theme === 'oled';
+      const cardBg = isOled ? 'bg-[#161616] border-[#2A2A2A] text-white' : 'bg-white border-[#E2E8F0] text-[#1E293B]';
+      const subBg = isOled ? 'bg-[#1E1E1E] text-[#A0A0A0]' : 'bg-[#F8F9FA] text-[#64748B]';
+
+      const container = document.createElement('div');
+      container.id = 'fleet-success-modal-container';
+      container.className = 'fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200';
+      container.innerHTML = `
+        <!-- Fondo oscurecido con spotlight backdrop y difuminado -->
+        <div 
+          onclick="closeFleetSuccessModal()" 
+          style="background-color: rgba(0, 0, 0, 0.82); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);"
+          class="fixed inset-0 transition-opacity duration-300"
+        ></div>
+
+        <!-- Tarjeta Flotante Central estilo Guía Interactiva -->
+        <div 
+          role="dialog"
+          aria-label="Confirmación de maceta agregada"
+          class="relative z-10 ${cardBg} border rounded-3xl shadow-2xl p-5 sm:p-6 w-full max-w-sm flex flex-col gap-4 animate-in zoom-in-95 duration-200"
+        >
+          <!-- Encabezado con badge superior -->
+          <div class="flex items-center justify-between">
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#2ECC71]">
+              <span class="w-2 h-2 rounded-full bg-[#2ECC71] animate-pulse"></span>
+              SmartGarden • Flota Actualizada
+            </span>
+            <button 
+              onclick="closeFleetSuccessModal()" 
+              title="Cerrar"
+              class="p-1 rounded-lg text-gray-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <!-- Contenido central -->
+          <div class="flex items-start gap-3.5">
+            <div class="w-10 h-10 rounded-2xl bg-[#2ECC71]/15 text-[#2ECC71] flex items-center justify-center shrink-0 shadow-xs">
+              <i data-lucide="sprout" class="w-5 h-5"></i>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-sm sm:text-base font-bold tracking-tight">
+                ¡Maceta Añadida con Éxito!
+              </h3>
+              <p class="text-xs mt-1 leading-relaxed ${isOled ? 'text-[#B0B0B0]' : 'text-[#4A5568]'}">
+                La maceta <strong class="${isOled ? 'text-white' : 'text-gray-900'}">"${apodo}"</strong> ha sido asignada a su módulo IoT y ya se encuentra activa en tu flota.
+              </p>
+              <div class="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10.5px] font-semibold ${subBg}">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-[#2ECC71]"></i>
+                <span>Gemelo Digital y telemetría en vivo listos</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botón de Aceptar centrado -->
+          <div class="pt-2 border-t border-inherit">
+            <button
+              onclick="closeFleetSuccessModal()"
+              class="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-[#2ECC71] to-[#27AE60] text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg hover:scale-101 active:scale-99 transition-all cursor-pointer"
+            >
+              <span>Aceptar</span>
+              <i data-lucide="check" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(container);
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeFleetSuccessModal() {
+      const container = document.getElementById('fleet-success-modal-container');
+      if (container) {
+        container.classList.add('opacity-0', 'transition-opacity', 'duration-200');
+        setTimeout(() => container.remove(), 200);
       }
     }
 
