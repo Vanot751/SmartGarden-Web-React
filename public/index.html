@@ -4361,11 +4361,15 @@
         return;
       }
 
-      // Si no es móvil, restaurar elevación normal de FloraBot
+      // Si no es móvil, asegurar que en el paso de FloraBot mantenga zIndex sobre el backdrop para ser cliqueable
       const floraBtnDesk = document.getElementById('florabot-launcher-button') || document.querySelector('#florabot-widget-container button');
       if (floraBtnDesk && floraBtnDesk.parentElement) {
         floraBtnDesk.parentElement.style.bottom = '';
-        floraBtnDesk.parentElement.style.zIndex = '';
+        if (currentStep.targetId === 'florabot-widget-container' || currentStep.targetId === 'florabot-launcher-button') {
+          floraBtnDesk.parentElement.style.zIndex = '95';
+        } else {
+          floraBtnDesk.parentElement.style.zIndex = '';
+        }
       }
 
       // =============================================================
@@ -4513,6 +4517,9 @@
         const floraBtn = document.getElementById('florabot-launcher-button') || (targetEl ? targetEl.querySelector('button') : null);
         if (floraBtn) {
           floraBtn.classList.add('tour-florabot-active');
+          if (floraBtn.parentElement) {
+            floraBtn.parentElement.style.zIndex = '95';
+          }
         }
       }
 
@@ -4812,6 +4819,10 @@
       if (floraBotState.isOpen) {
         closeFloraBot();
       } else {
+        // Si la guía interactiva está activa, cerrarla y completarla al interactuar con el chatbot
+        if (typeof tourState !== 'undefined' && tourState.active) {
+          closeOnboardingTour(true);
+        }
         floraBotState.isOpen = true;
         renderFloraBot();
         setTimeout(() => {
