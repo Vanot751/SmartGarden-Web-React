@@ -1440,13 +1440,115 @@
       fetchTelemetry(false);
     }
 
-    async function deleteFleetPlant(e, plantId, plantName) {
+    function deleteFleetPlant(e, plantId, plantName) {
       if (e) {
         e.stopPropagation();
         e.preventDefault();
       }
-      if (!confirm(`¿Estás seguro de eliminar la maceta "${plantName}" de tu flota?\nEsta acción retirará la tarjeta del jardín.`)) {
-        return;
+      showConfirmDeleteModal(plantId, plantName);
+    }
+
+    function showConfirmDeleteModal(plantId, plantName) {
+      const existing = document.getElementById('delete-plant-modal-container');
+      if (existing) existing.remove();
+
+      const isOled = state.theme === 'oled';
+      const cardBg = isOled ? 'bg-[#161616] border-[#2A2A2A] text-white' : 'bg-white border-[#E2E8F0] text-[#1E293B]';
+      const subBg = isOled ? 'bg-[#1E1E1E] text-[#A0A0A0]' : 'bg-[#F8F9FA] text-[#64748B]';
+
+      const container = document.createElement('div');
+      container.id = 'delete-plant-modal-container';
+      container.className = 'fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200';
+      container.innerHTML = `
+        <!-- Fondo oscurecido con spotlight backdrop y difuminado -->
+        <div 
+          onclick="closeConfirmDeleteModal()" 
+          style="background-color: rgba(0, 0, 0, 0.82); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);"
+          class="fixed inset-0 transition-opacity duration-300"
+        ></div>
+
+        <!-- Tarjeta Flotante Central estilo Guía Interactiva -->
+        <div 
+          role="dialog"
+          aria-label="Confirmación para eliminar maceta"
+          class="relative z-10 ${cardBg} border rounded-3xl shadow-2xl p-5 sm:p-6 w-full max-w-sm flex flex-col gap-4 animate-in zoom-in-95 duration-200"
+        >
+          <!-- Encabezado con badge superior rojo -->
+          <div class="flex items-center justify-between">
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-red-500">
+              <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+              SmartGarden • Retirar Maceta
+            </span>
+            <button 
+              onclick="closeConfirmDeleteModal()" 
+              title="Cerrar"
+              class="p-1 rounded-lg text-gray-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <!-- Contenido central -->
+          <div class="flex items-start gap-3.5">
+            <div class="w-10 h-10 rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center shrink-0 shadow-xs">
+              <i data-lucide="trash-2" class="w-5 h-5"></i>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-sm sm:text-base font-bold tracking-tight">
+                ¿Retirar maceta de tu flota?
+              </h3>
+              <p class="text-xs mt-1 leading-relaxed ${isOled ? 'text-[#B0B0B0]' : 'text-[#4A5568]'}">
+                ¿Estás seguro de eliminar <strong class="${isOled ? 'text-white' : 'text-gray-900'}">"${plantName}"</strong>? Esta acción retirará la tarjeta del jardín y desvinculará sus telemetrías.
+              </p>
+              <div class="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10.5px] font-semibold bg-red-500/10 text-red-400">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                <span>El módulo quedará libre para nuevas especies</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botones de Acción (Cancelar / Eliminar) -->
+          <div class="pt-2 border-t border-inherit flex items-center gap-2.5">
+            <button
+              type="button"
+              onclick="closeConfirmDeleteModal()"
+              class="flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold border ${
+                isOled ? 'border-[#333] text-[#AAA] hover:bg-[#222]' : 'border-[#E2E8F0] text-[#64748B] hover:bg-[#F1F3EA]'
+              } transition-all cursor-pointer text-center"
+            >
+              Cancelar
+            </button>
+
+            <button
+              id="confirm-delete-btn"
+              type="button"
+              onclick="executeDeletePlant(${plantId})"
+              class="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg hover:scale-101 active:scale-99 transition-all cursor-pointer"
+            >
+              <span>Eliminar</span>
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(container);
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeConfirmDeleteModal() {
+      const container = document.getElementById('delete-plant-modal-container');
+      if (container) {
+        container.classList.add('opacity-0', 'transition-opacity', 'duration-200');
+        setTimeout(() => container.remove(), 200);
+      }
+    }
+
+    async function executeDeletePlant(plantId) {
+      const btn = document.getElementById('confirm-delete-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>Eliminando...</span>';
       }
       try {
         await api.delete(`/api/user-plants/${plantId}/`);
@@ -1454,9 +1556,11 @@
           state.selectedFleetPlantId = null;
           localStorage.removeItem('smartgarden_selected_plant');
         }
+        closeConfirmDeleteModal();
         await fetchUserPlants();
       } catch (err) {
         console.error('Error al eliminar maceta', err);
+        closeConfirmDeleteModal();
         alert('No se pudo eliminar la maceta. Intenta nuevamente.');
       }
     }
