@@ -1896,6 +1896,19 @@
       }
     }
 
+    function clearPlantSearch() {
+      state.searchQuery = '';
+      state.searchResults = [];
+      state.isSearching = false;
+      state.searchError = null;
+      state.searchRequestId += 1;
+      const searchInput = document.getElementById('plant-search-input');
+      if (searchInput) searchInput.value = '';
+      const clearBtn = document.getElementById('plant-search-clear');
+      if (clearBtn) clearBtn.classList.add('hidden');
+      renderSearchResultsDOM();
+    }
+
     async function sendActuatorCommand(payload) {
       const selectedPlant = getSelectedPlant();
       const plantKey = String(selectedPlant?.id || 'default');
@@ -1981,6 +1994,7 @@
         };
         await api.post('/api/user-plants/', payload);
         closePlantModal();
+        clearPlantSearch();
         await fetchUserPlants();
         alert(`¡Maceta "${payload.apodo}" agregada con éxito a tu flota!`);
       } catch (err) {
@@ -3137,10 +3151,19 @@
                   type="text"
                   placeholder="Buscar especie para añadir (monstera, menta)..."
                   oninput="handleSearchInput(event)"
-                  class="w-full pl-10 pr-4 py-2 rounded-xl text-xs border transition-all focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 ${
+                  class="w-full pl-10 pr-9 py-2 rounded-xl text-xs border transition-all focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 ${
                     isOled ? 'bg-[#181818] border-[#2A2A2A] text-white placeholder-[#888888]' : 'bg-white border-[#E2E8F0] text-[#2D3748] placeholder-[#94A3B8]'
                   }"
                 >
+                <button
+                  id="plant-search-clear"
+                  type="button"
+                  onclick="clearPlantSearch()"
+                  title="Limpiar búsqueda"
+                  class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
               </div>
             </div>
 
@@ -3999,6 +4022,14 @@
     let searchDebounceTimeout = null;
     function handleSearchInput(e) {
       const q = e.target.value;
+      const clearBtn = document.getElementById('plant-search-clear');
+      if (clearBtn) {
+        if (q.trim()) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+      }
       if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
       searchDebounceTimeout = setTimeout(() => {
         searchPlants(q);
