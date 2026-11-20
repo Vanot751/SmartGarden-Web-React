@@ -4765,6 +4765,35 @@
       if (tourState.active) positionTourCard();
     }, { passive: true });
 
+    function scrollToTourTarget(targetEl, isFloraBotStep) {
+      if (!targetEl) return;
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+        if (isFloraBotStep) return;
+        const rect = targetEl.getBoundingClientRect();
+        const card = document.getElementById('tour-floating-card');
+        const sheetH = card ? (card.getBoundingClientRect().height || card.offsetHeight || 300) : 300;
+        const visibleHeight = Math.max(180, window.innerHeight - sheetH);
+        const headerOffset = 65; // altura del header sticky móvil
+        const availableH = Math.max(100, visibleHeight - headerOffset);
+
+        const elH = rect.height;
+        let desiredTopInViewport;
+        if (elH < availableH) {
+          // Si el elemento cabe en el espacio visible entre el header y la tarjeta, centrarlo
+          desiredTopInViewport = headerOffset + (availableH - elH) / 2;
+        } else {
+          // Si es más alto que el espacio disponible, dejar un margen seguro bajo el header
+          desiredTopInViewport = headerOffset + 14;
+        }
+
+        const targetY = window.pageYOffset + rect.top - desiredTopInViewport;
+        window.scrollTo({ top: Math.max(0, Math.round(targetY)), behavior: 'smooth' });
+      } else {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
     function renderOnboardingTour() {
       const container = document.getElementById('onboarding-tour-container');
       if (!container) return;
@@ -4790,17 +4819,11 @@
       if (targetEl) {
         targetEl.classList.add('tour-highlighted-element');
         setTimeout(() => {
-          const isMobile = window.innerWidth < 768;
-          if (isMobile) {
-            if (!isFloraBotStep) {
-              const rect = targetEl.getBoundingClientRect();
-              const targetY = window.pageYOffset + rect.top - 70;
-              window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-            }
-          } else {
-            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
+          scrollToTourTarget(targetEl, isFloraBotStep);
         }, 60);
+        setTimeout(() => {
+          scrollToTourTarget(targetEl, isFloraBotStep);
+        }, 220);
       }
 
       if (isFloraBotStep) {
