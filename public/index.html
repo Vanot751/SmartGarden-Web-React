@@ -5202,6 +5202,30 @@
         };
       }
 
+      // Recopilar contexto de TODA la cartelera/flota de macetas del usuario en su sesión actual
+      const fleetContext = (state.userPlants || []).map(p => {
+        const telem = (typeof getPlantTelemetry === 'function') ? getPlantTelemetry(p) : null;
+        const pSens = telem?.sensores || {};
+        const health = (typeof calculatePlantHealth === 'function') ? calculatePlantHealth(p, telem) : {};
+        const isSelected = p.id === state.selectedFleetPlantId;
+        return {
+          id: p.id,
+          name: p.nombre || p.apodo || 'Planta SmartGarden',
+          scientific_name: p.especie || 'Especie botánica',
+          selected: isSelected,
+          health_status: health.status || 'optimo',
+          health_label: health.label || 'Óptimo',
+          health_issues: health.description || 'Condiciones estables',
+          temperature: typeof pSens.temperatura === 'number' ? pSens.temperatura : 26.4,
+          soil_moisture: typeof pSens.humedadSuelo === 'number' ? pSens.humedadSuelo : (typeof pSens.humedad === 'number' ? pSens.humedad : 52),
+          light_lux: typeof pSens.luzSolar === 'number' ? pSens.luzSolar : (typeof pSens.luz === 'number' ? pSens.luz : 78),
+          temp_min: p.temp_min,
+          temp_max: p.temp_max,
+          humedad_min: p.humedad_min,
+          dosis_riego_ml: p.dosis_riego_ml
+        };
+      });
+
       try {
         const historyPayload = floraBotState.messages.map(m => ({
           role: m.role,
@@ -5211,7 +5235,8 @@
         const res = await api.post('/api/chat/', {
           message: text,
           history: historyPayload,
-          plant_context: plantContext
+          plant_context: plantContext,
+          fleet_context: fleetContext
         });
 
         if (res.data && res.data.response) {
@@ -5369,10 +5394,10 @@
 
       const quickChips = [
         "¿Cómo está mi planta ahora mismo?",
+        "¿Cómo están todas mis plantas?",
+        "¿Cuál planta necesita agua urgente?",
         "¿Por qué amarillean las hojas?",
-        "¿Cómo regular el riego?",
-        "Remedios para plagas",
-        "Luz y temperatura óptimas"
+        "Remedios para plagas"
       ];
 
       const chipsHtml = (floraBotState.messages.length <= 2 && !floraBotState.isThinking) ? `
