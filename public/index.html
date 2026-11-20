@@ -1994,19 +1994,33 @@
             });
           }
 
+          const isPaywallSpam = (str) => {
+            if (!str || typeof str !== 'string') return false;
+            const s = str.toLowerCase();
+            return s.includes('upgrade') || s.includes('premium') || s.includes('supreme') || s.includes('perenual') || s.includes('subscription') || s.includes('http');
+          };
+
+          const rawSunlight = Array.isArray(p.sunlight) ? p.sunlight : (p.sunlight ? [p.sunlight] : []);
+          const cleanSunlightList = rawSunlight.filter(s => typeof s === 'string' && !isPaywallSpam(s));
+          const luzOptima = cleanSunlightList.length > 0 ? cleanSunlightList.join(', ') : 'Luz indirecta o filtrada';
+
+          const cleanFamily = (p.familia && !isPaywallSpam(p.familia))
+            ? p.familia
+            : (p.family && !isPaywallSpam(p.family) ? p.family : 'FloraSense');
+
           return {
             id: p.id || p.api_species_id || (idx + 1),
             nombre_comun: p.nombre_comun || p.common_name || (p.apodo || 'Especie Botánica'),
             especie: scList[0] || p.especie || p.scientific_name || 'Planta',
             sinonimos_cientificos: scList,
-            familia: p.familia || p.family || (Array.isArray(p.sunlight) ? `Sol: ${p.sunlight.join(', ')}` : 'FloraSense'),
+            familia: cleanFamily,
             imagen_url: p.imagen_url || p.thumbnail || 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?w=600&auto=format&fit=crop&q=80',
             temp_max: p.temp_max || 32.0,
             temp_min: p.temp_min || 16.0,
-            humedad_min: p.humedad_min || p.humidity_min || (p.watering === 'Frequent' ? 45.0 : p.watering === 'Average' ? 30.0 : 20.0),
+            humedad_min: p.humedad_min || p.humidity_min || 30.0,
             dosis_riego_ml: p.dosis_riego_ml || p.watering_ml || 100,
-            luz_optima: Array.isArray(p.sunlight) ? p.sunlight.join(', ') : (p.sunlight || 'Luz indirecta'),
-            descripcion: p.descripcion || p.description || (p.watering ? `Riego: ${p.watering}. Exposición: ${Array.isArray(p.sunlight) ? p.sunlight.join(', ') : 'buena luz'}.` : 'Especie botánica indexada.')
+            luz_optima: luzOptima,
+            descripcion: ''
           };
         });
         state.isSearching = false;
@@ -4138,6 +4152,21 @@
       lucide.createIcons();
     }
 
+    function askFloraBotAboutPlant(commonName, scientificName) {
+      if (typeof closePlantModal === 'function') {
+        closePlantModal();
+      }
+      const isSpeciesGeneric = !scientificName || scientificName === 'Planta' || scientificName === commonName;
+      const targetPlant = isSpeciesGeneric ? commonName : `${commonName} (${scientificName})`;
+      const prompt = `¿Cuáles son las condiciones óptimas de cultivo, luz solar, rango de temperatura, sustrato y requerimientos para ${targetPlant}?`;
+      if (!floraBotState.isOpen) {
+        toggleFloraBot();
+      }
+      setTimeout(() => {
+        sendFloraBotMessage(prompt);
+      }, 300);
+    }
+
     // ==========================================
     // RENDERIZADO DE BÚSQUEDA CON VISTA PREVIA HOVER
     // ==========================================
@@ -4213,19 +4242,22 @@
               </div>
               <div class="col-span-2 flex items-center gap-1 text-[#D69E2E] font-semibold truncate" title="Requerimiento lumínico">
                 <span>☀️ Luz:</span>
-                <span class="font-bold truncate">${p.luz_optima || 'Luz indirecta'}</span>
-              </div>
-              <div class="col-span-2 flex items-center gap-1 text-[#2ECC71] font-semibold" title="Dosis recomendada de riego">
-                <span>💦 Riego calibrado:</span>
-                <span class="font-bold">${p.dosis_riego_ml || 100} ml</span>
+                <span class="font-bold truncate">${p.luz_optima || 'Luz indirecta o filtrada'}</span>
               </div>
             </div>
 
-            <p class="text-[11px] text-[#718096] mt-2 line-clamp-2">${p.descripcion}</p>
+            <!-- Botón directo de consulta a la IA para condiciones óptimas -->
+            <button type="button"
+              onclick="event.stopPropagation(); askFloraBotAboutPlant('${(p.nombre_comun || '').replace(/'/g, "\\'")}', '${(p.especie || '').replace(/'/g, "\\'")}')"
+              class="mt-3 w-full py-2 px-2.5 rounded-xl border border-[#2ECC71]/35 bg-[#2ECC71]/10 hover:bg-[#2ECC71]/20 text-[#2ECC71] text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              title="Preguntar a FloraBot las condiciones óptimas de cultivo y cuidado">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-[#2ECC71] shrink-0"></i>
+              <span>Consultar condiciones a la IA</span>
+            </button>
           </div>
 
           <button onclick="openPlantModal('${String(p.id).replace(/'/g, "\\'")}')"
-            class="mt-4 w-full py-2 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs">
+            class="mt-2.5 w-full py-2 bg-[#2ECC71] hover:bg-[#27AE60] text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs">
             <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
             <span>Ajustar Parámetros</span>
           </button>
@@ -4424,7 +4456,13 @@
                     </div>
                   </div>
                 ` : ''}
-                <span class="text-[10px] font-bold text-[#2ECC71] mt-1 block">Luz: ${plant.luz_optima || 'Luz indirecta'}</span>
+                <span class="text-[10px] font-bold text-[#2ECC71] mt-1 block">Luz: ${(!plant.luz_optima || isPaywallSpam(plant.luz_optima)) ? 'Luz indirecta o filtrada' : plant.luz_optima}</span>
+                <button type="button"
+                  onclick="askFloraBotAboutPlant('${(plant.nombre_comun || '').replace(/'/g, "\\'")}', '${(plant.especie || '').replace(/'/g, "\\'")}')"
+                  class="mt-1.5 text-[10.5px] text-[#2ECC71] hover:underline flex items-center gap-1 font-semibold cursor-pointer">
+                  <i data-lucide="sparkles" class="w-3 h-3 text-[#2ECC71]"></i>
+                  <span>Consultar condiciones a la IA</span>
+                </button>
               </div>
             </div>
 
