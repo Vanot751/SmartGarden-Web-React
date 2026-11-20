@@ -99,8 +99,7 @@
 
     /* Ocultar tooltip flotante de FloraBot mientras la guía interactiva esté abierta */
     body.tour-active #florabot-tooltip,
-    .tour-active #florabot-tooltip,
-    .tour-active #florabot-launcher-wrapper span {
+    .tour-active #florabot-tooltip {
       display: none !important;
       opacity: 0 !important;
       visibility: hidden !important;
@@ -4530,9 +4529,17 @@
         el.classList.remove('tour-florabot-active');
       });
       const floraBtn = document.getElementById('florabot-launcher-button') || document.querySelector('#florabot-widget-container button');
-      if (floraBtn && floraBtn.parentElement) {
-        floraBtn.parentElement.style.bottom = '';
-        floraBtn.parentElement.style.zIndex = '';
+      const wrapper = document.getElementById('florabot-launcher-wrapper') || (floraBtn ? floraBtn.parentElement : null);
+      if (wrapper) {
+        wrapper.style.bottom = '';
+        wrapper.style.top = '';
+        wrapper.style.left = '';
+        wrapper.style.right = '';
+        wrapper.style.zIndex = '';
+      }
+      if (floraBtn) {
+        floraBtn.classList.remove('tour-florabot-active');
+        floraBtn.style.zIndex = '';
       }
       const hand = document.getElementById('tour-florabot-hand');
       if (hand) hand.remove();
@@ -4584,42 +4591,76 @@
         card.style.borderRight = 'none';
         card.style.padding = '16px 16px max(18px, env(safe-area-inset-bottom, 18px)) 16px';
         card.style.boxShadow = '0 -10px 40px rgba(0, 0, 0, 0.65)';
+        card.style.zIndex = '90';
 
-        // Manejo especial de FloraBot en móvil para elevarlo sobre el Bottom Sheet
-        const floraBtn = document.getElementById('florabot-launcher-button') || document.querySelector('#florabot-widget-container button');
+        // Manejo especial de FloraBot en móvil para elevarlo EXACTAMENTE por encima del Bottom Sheet
+        const wrapper = document.getElementById('florabot-launcher-wrapper');
+        const floraBtn = document.getElementById('florabot-launcher-button') || (wrapper ? wrapper.querySelector('button') : null);
         const hand = document.getElementById('tour-florabot-hand');
-        if (floraBtn && floraBtn.parentElement) {
+        if (wrapper) {
           if (currentStep.targetId === 'florabot-widget-container' || currentStep.targetId === 'florabot-launcher-button') {
-            const sheetH = card.offsetHeight || 190;
-            floraBtn.parentElement.style.bottom = `${sheetH + 16}px`;
-            floraBtn.parentElement.style.zIndex = '95';
+            const cardRect = card.getBoundingClientRect();
+            const sheetH = Math.max(cardRect.height || 0, card.offsetHeight || 0, 280);
+
+            // Botón de FloraBot flotando limpiamente por encima de la tarjeta explicativa
+            wrapper.style.position = 'fixed';
+            wrapper.style.top = 'auto';
+            wrapper.style.bottom = `${sheetH + 18}px`;
+            wrapper.style.right = '20px';
+            wrapper.style.left = 'auto';
+            wrapper.style.zIndex = '100'; // Muy por encima de la tarjeta (90) y del fondo (80)
+            wrapper.style.display = 'flex';
+            wrapper.style.visibility = 'visible';
+            wrapper.style.opacity = '1';
+            wrapper.style.pointerEvents = 'auto';
+
+            if (floraBtn) {
+              floraBtn.classList.add('tour-florabot-active');
+              floraBtn.style.zIndex = '100';
+            }
+
             if (hand) {
-              const btnRect = floraBtn.getBoundingClientRect();
-              const handWidth = hand.offsetWidth || 76;
-              const handHeight = hand.offsetHeight || 24;
-              const handLeft = btnRect.left + (btnRect.width / 2) - (handWidth / 2);
-              const handTop = btnRect.top - handHeight - 10;
-              hand.style.left = `${Math.round(handLeft)}px`;
-              hand.style.top = `${Math.round(handTop)}px`;
-              hand.style.bottom = 'auto';
-              hand.style.right = 'auto';
+              // Banner ¡Click! 👇 ubicado directamente sobre el botón con margen lateral anti-corte
+              hand.style.position = 'fixed';
+              hand.style.top = 'auto';
+              hand.style.bottom = `${sheetH + 18 + 52 + 8}px`;
+              hand.style.right = '12px'; // Margen seguro contra el borde derecho de la pantalla
+              hand.style.left = 'auto';
+              hand.style.zIndex = '101';
+              hand.style.display = 'flex';
             }
           } else {
-            floraBtn.parentElement.style.bottom = '';
-            floraBtn.parentElement.style.zIndex = '';
+            wrapper.style.bottom = '';
+            wrapper.style.top = '';
+            wrapper.style.left = '';
+            wrapper.style.right = '';
+            wrapper.style.zIndex = '';
+            if (floraBtn) {
+              floraBtn.classList.remove('tour-florabot-active');
+              floraBtn.style.zIndex = '';
+            }
           }
         }
         return;
       }
 
       // Si no es móvil, asegurar que en el paso de FloraBot mantenga zIndex sobre el backdrop para ser cliqueable
-      const floraBtnDesk = document.getElementById('florabot-launcher-button') || document.querySelector('#florabot-widget-container button');
-      if (floraBtnDesk && floraBtnDesk.parentElement) {
-        floraBtnDesk.parentElement.style.bottom = '';
+      const wrapperDesk = document.getElementById('florabot-launcher-wrapper');
+      const floraBtnDesk = document.getElementById('florabot-launcher-button') || (wrapperDesk ? wrapperDesk.querySelector('button') : null);
+      if (wrapperDesk) {
+        wrapperDesk.style.bottom = '';
         if (currentStep.targetId === 'florabot-widget-container' || currentStep.targetId === 'florabot-launcher-button') {
-          floraBtnDesk.parentElement.style.zIndex = '95';
+          wrapperDesk.style.zIndex = '100';
+          if (floraBtnDesk) {
+            floraBtnDesk.classList.add('tour-florabot-active');
+            floraBtnDesk.style.zIndex = '100';
+          }
         } else {
-          floraBtnDesk.parentElement.style.zIndex = '';
+          wrapperDesk.style.zIndex = '';
+          if (floraBtnDesk) {
+            floraBtnDesk.classList.remove('tour-florabot-active');
+            floraBtnDesk.style.zIndex = '';
+          }
         }
       }
 
@@ -4751,9 +4792,7 @@
         setTimeout(() => {
           const isMobile = window.innerWidth < 768;
           if (isMobile) {
-            if (isFloraBotStep) {
-              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-            } else {
+            if (!isFloraBotStep) {
               const rect = targetEl.getBoundingClientRect();
               const targetY = window.pageYOffset + rect.top - 70;
               window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
@@ -4769,7 +4808,7 @@
         if (floraBtn) {
           floraBtn.classList.add('tour-florabot-active');
           if (floraBtn.parentElement) {
-            floraBtn.parentElement.style.zIndex = '95';
+            floraBtn.parentElement.style.zIndex = '100';
           }
         }
       }
