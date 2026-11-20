@@ -5393,24 +5393,31 @@
       }
 
       const quickChips = [
-        "¿Cómo está mi planta ahora mismo?",
-        "¿Cómo están todas mis plantas?",
-        "¿Cómo busco una planta por nombre chileno?",
-        "¿Cuál planta necesita agua urgente?",
-        "Remedios para plagas"
+        { text: "¿Cómo busco una planta por nombre chileno?", highlighted: true, badge: "🇨🇱" },
+        { text: "¿Cómo está mi planta ahora mismo?", highlighted: false },
+        { text: "¿Cómo están todas mis plantas?", highlighted: false },
+        { text: "¿Cuál planta necesita agua urgente?", highlighted: false },
+        { text: "Remedios para plagas", highlighted: false }
       ];
 
       const chipsHtml = (floraBotState.messages.length <= 2 && !floraBotState.isThinking) ? `
         <div class="px-3 py-2 border-t ${headerBg} flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x overscroll-contain">
           ${quickChips.map(chip => `
             <button
-              onclick="sendFloraBotMessage('${chip.replace(/'/g, "\\'")}')"
-              class="shrink-0 text-[11px] px-2.5 py-1 rounded-full border transition-all cursor-pointer active:scale-95 ${
-                isOled 
-                  ? 'bg-[#1C1C1C] border-[#333] text-[#CCC] hover:border-[#2ECC71] hover:text-[#2ECC71]' 
-                  : 'bg-white border-[#E2E8F0] text-[#475569] hover:border-[#2ECC71] hover:text-[#2ECC71]'
+              onclick="sendFloraBotMessage('${chip.text.replace(/'/g, "\\'")}')"
+              class="shrink-0 text-[11px] px-2.5 py-1 rounded-full border transition-all cursor-pointer active:scale-95 flex items-center gap-1 ${
+                chip.highlighted
+                  ? (isOled 
+                      ? 'bg-[#2ECC71]/15 border-[#2ECC71] text-[#2ECC71] font-bold shadow-xs shadow-[#2ECC71]/20 ring-1 ring-[#2ECC71]/40 hover:bg-[#2ECC71]/25' 
+                      : 'bg-[#2ECC71]/15 border-[#2ECC71] text-[#27AE60] font-bold shadow-xs hover:bg-[#2ECC71]/25 ring-1 ring-[#2ECC71]/30')
+                  : (isOled 
+                      ? 'bg-[#1C1C1C] border-[#333] text-[#CCC] hover:border-[#2ECC71] hover:text-[#2ECC71]' 
+                      : 'bg-white border-[#E2E8F0] text-[#475569] hover:border-[#2ECC71] hover:text-[#2ECC71]')
               }"
-            >${chip}</button>
+            >
+              ${chip.badge ? `<span class="text-xs">${chip.badge}</span>` : ''}
+              <span>${chip.text}</span>
+            </button>
           `).join('')}
         </div>
       ` : '';
