@@ -2708,11 +2708,11 @@
 
       const footerMaxTemp = document.getElementById('chart-footer-max-temp');
       const footerMinHum = document.getElementById('chart-footer-min-hum');
-      if (footerMaxTemp) footerMaxTemp.textContent = `Límite Térmico: ${maxTemp.toFixed(1)}°C`;
-      if (footerMinHum) footerMinHum.textContent = `Límite Hídrico: ${minHum.toFixed(1)}%`;
+      if (footerMaxTemp) footerMaxTemp.textContent = 'Límite Térmico';
+      if (footerMinHum) footerMinHum.textContent = 'Límite Hídrico';
 
-      const maxTempLabel = `Límite Máx. Temp (${maxTemp}°C)`;
-      const minHumLabel = `Límite Mín. Humedad (${minHum}%)`;
+      const maxTempLabel = 'Límite Térmico';
+      const minHumLabel = 'Límite Hídrico';
 
       if (
         state.chartInstance &&
@@ -3630,7 +3630,7 @@
                       <span class="text-sm font-bold text-[#9C4221]">°C</span>
                     </div>
                   </div>
-                  <p class="text-[10px] text-[#9C4221] mt-2 pt-2 border-t border-inherit">TMP36 (Pin A0) • Umbral: 35°C</p>
+                  <p class="text-[10px] text-[#9C4221] mt-2 pt-2 border-t border-inherit">TMP36 (Pin A0) • Telemetría continua</p>
                 </div>
 
                 <!-- Humedad -->
@@ -3652,7 +3652,7 @@
                       <span class="text-sm font-bold text-[#2C5282]">%</span>
                     </div>
                   </div>
-                  <p class="text-[10px] text-[#2C5282] mt-2 pt-2 border-t border-inherit">Higrómetro (Pin A2) • Mín: 30%</p>
+                  <p class="text-[10px] text-[#2C5282] mt-2 pt-2 border-t border-inherit">Higrómetro (Pin A2) • Telemetría continua</p>
                 </div>
 
                 <!-- Luz Solar -->
@@ -3724,11 +3724,11 @@
                     </span>
                     <span class="inline-flex items-center gap-1.5">
                       <span class="w-4 border-t-2 border-dashed border-[#EF4444] inline-block"></span>
-                      <span id="chart-footer-max-temp">Límite Térmico: 35.0°C</span>
+                      <span id="chart-footer-max-temp">Límite Térmico</span>
                     </span>
                     <span class="inline-flex items-center gap-1.5">
                       <span class="w-4 border-t-2 border-dashed border-[#A855F7] inline-block"></span>
-                      <span id="chart-footer-min-hum">Límite Hídrico: 30.0%</span>
+                      <span id="chart-footer-min-hum">Límite Hídrico</span>
                     </span>
                   </div>
                   <span class="hidden sm:inline">Persistencia activa en TelemetryLog</span>
