@@ -1848,6 +1848,9 @@
       } else if (preset === 'sobrecalentamiento') {
         state.simulation.temperatura = maxT + 4.5;
         state.simulation.humedadSuelo = Math.max(12, minH - 6);
+      } else if (preset === 'helada' || preset === 'frio') {
+        state.simulation.temperatura = Math.min(-2.0, minT - 5.0);
+        state.simulation.humedadSuelo = Math.max(20, minH);
       } else if (preset === 'exceso') {
         state.simulation.humedadSuelo = 92.0;
         state.simulation.temperatura = 22.0;
@@ -3555,21 +3558,25 @@
                 </p>
 
                 <!-- Botones de Escenarios Rápidos -->
-                <div class="grid grid-cols-4 gap-1.5 mb-2.5 text-[10px]">
+                <div class="grid grid-cols-5 gap-1 mb-2.5 text-[9.5px]">
                   <button type="button" onclick="triggerSimulationPreset('sequia')"
-                    class="py-1 px-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 text-[#DD6B20] font-bold transition-all border border-orange-500/30 cursor-pointer text-center">
+                    class="py-1 px-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 text-[#DD6B20] font-bold transition-all border border-orange-500/30 cursor-pointer text-center truncate" title="Simular déficit hídrico extremo">
                     🌵 Sequía
                   </button>
                   <button type="button" onclick="triggerSimulationPreset('sobrecalentamiento')"
-                    class="py-1 px-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-[#E53E3E] font-bold transition-all border border-red-500/30 cursor-pointer text-center">
+                    class="py-1 px-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-[#E53E3E] font-bold transition-all border border-red-500/30 cursor-pointer text-center truncate" title="Simular ola de calor térmico">
                     🔥 Calor
                   </button>
+                  <button type="button" onclick="triggerSimulationPreset('helada')"
+                    class="py-1 px-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-[#0284C7] font-bold transition-all border border-cyan-500/30 cursor-pointer text-center truncate" title="Simular helada o frío extremo bajo cero">
+                    ❄️ Helada
+                  </button>
                   <button type="button" onclick="triggerSimulationPreset('exceso')"
-                    class="py-1 px-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-[#2B6CB0] font-bold transition-all border border-blue-500/30 cursor-pointer text-center">
+                    class="py-1 px-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-[#2B6CB0] font-bold transition-all border border-blue-500/30 cursor-pointer text-center truncate" title="Simular anegamiento o exceso de agua">
                     🌊 Exceso
                   </button>
                   <button type="button" onclick="triggerSimulationPreset('optimo')"
-                    class="py-1 px-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-[#2ECC71] font-bold transition-all border border-emerald-500/30 cursor-pointer text-center">
+                    class="py-1 px-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-[#2ECC71] font-bold transition-all border border-emerald-500/30 cursor-pointer text-center truncate" title="Simular parámetros ideales de confort">
                     🌿 Óptimo
                   </button>
                 </div>
@@ -3581,7 +3588,7 @@
                       <span class="text-[#718096]">Temperatura Manual:</span>
                       <span id="sim-temp-val" class="font-bold text-[#DD6B20]">${state.simulation.temperatura.toFixed(1)}°C</span>
                     </div>
-                    <input id="sim-temp-slider" type="range" min="10" max="45" step="0.5" value="${state.simulation.temperatura}"
+                    <input id="sim-temp-slider" type="range" min="-5" max="45" step="0.5" value="${state.simulation.temperatura}"
                       oninput="setSimulationParam('temperatura', this.value)"
                       class="w-full accent-[#DD6B20] cursor-pointer">
                   </div>
@@ -3774,9 +3781,15 @@
       // Badges
       const badgeTemp = document.getElementById('badge-temp');
       if (badgeTemp) {
-        if (s.temperatura > 35.0) {
-          badgeTemp.innerText = '🔥 Crítico (>35°C)';
+        const plant = getSelectedPlant();
+        const maxT = plant?.temp_max || 35.0;
+        const minT = plant?.temp_min || 12.0;
+        if (s.temperatura > maxT) {
+          badgeTemp.innerText = `🔥 Calor (>${maxT}°C)`;
           badgeTemp.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E53E3E] text-white animate-bounce';
+        } else if (s.temperatura < minT) {
+          badgeTemp.innerText = s.temperatura <= 0 ? `❄️ Helada (${s.temperatura.toFixed(1)}°C)` : `❄️ Frío (<${minT}°C)`;
+          badgeTemp.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#0284C7] text-white animate-pulse';
         } else {
           badgeTemp.innerText = 'Normal';
           badgeTemp.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FED7C3] text-[#C05621]';
