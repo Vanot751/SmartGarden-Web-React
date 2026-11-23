@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Sprout, Lock, User, AlertCircle, Loader2, ShieldCheck, Sun, Moon, Eye, EyeOff, Mail, CheckCircle2, UserPlus } from 'lucide-react';
 import api from '../api/axiosConfig';
 import { useTheme } from '../context/ThemeContext';
 
 export default function Login() {
-  const navigate = useNavigate();
   const location = useLocation();
   const { isOled, toggleTheme } = useTheme();
 
@@ -26,7 +25,7 @@ export default function Login() {
     // Si ya existe token activo, redirigir al Dashboard
     const token = localStorage.getItem('access_token');
     if (token) {
-      navigate('/dashboard', { replace: true });
+      window.location.replace('/dashboard');
     }
 
     const params = new URLSearchParams(location.search);
@@ -53,7 +52,7 @@ export default function Login() {
     }
     // La contraseña siempre se solicita (nunca se auto-completa)
     setPassword('');
-  }, [location, navigate]);
+  }, [location]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -116,7 +115,7 @@ export default function Login() {
       }
       localStorage.removeItem('remembered_password');
 
-      navigate('/dashboard', { replace: true });
+      window.location.replace('/dashboard');
     } catch (err) {
       console.error('[SmartGarden Auth Error]', err);
       if (err.response) {

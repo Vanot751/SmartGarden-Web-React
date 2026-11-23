@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
 
 // Redirección hacia el panel administrativo Django
 function AdminRedirect() {
@@ -13,6 +12,16 @@ function AdminRedirect() {
     const targetPath = currentPath.endsWith('/') ? currentPath : `${currentPath}/`;
     const search = window.location.search || '';
     window.location.replace(`${backendUrl}${targetPath}${search}`);
+  }, []);
+
+  return null;
+}
+
+// /dashboard usa el portal completo existente para conservar Three.js,
+// Chart.js, búsqueda de plantas y FloraBot sin duplicar funcionalidades.
+function LegacyDashboardRedirect() {
+  useEffect(() => {
+    window.location.replace('/dashboard');
   }, []);
 
   return null;
@@ -40,7 +49,7 @@ export default function App() {
             path="/dashboard" 
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <LegacyDashboardRedirect />
               </ProtectedRoute>
             } 
           />
