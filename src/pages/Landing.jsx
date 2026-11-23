@@ -106,7 +106,7 @@ export default function Landing() {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <Link
-                to="/login"
+                to="/login?mode=register"
                 className={`inline-flex h-12 items-center justify-center rounded-2xl border px-6 text-sm font-bold transition-all ${
                   isOled ? 'border-[#333333] bg-[#171717] hover:border-[#2ECC71]/60' : 'border-[#D9E1D8] bg-white hover:border-[#2ECC71]'
                 }`}

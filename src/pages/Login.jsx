@@ -37,6 +37,10 @@ export default function Login() {
       const actUser = params.get('user') || '';
       setActivationNotice({ type: 'success', user: actUser });
       setIsRegister(false);
+    } else if (params.get('mode') === 'register') {
+      setIsRegister(true);
+      setError(null);
+      setActivationNotice(null);
     } else if (params.get('activation_error')) {
       setActivationNotice({ type: 'error' });
       setIsRegister(false);
