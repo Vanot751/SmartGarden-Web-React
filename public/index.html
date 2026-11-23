@@ -2,7 +2,7 @@
 <html lang="es" data-theme="pastel">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
   <title>SmartGarden | Pasarela Botánica IoT Experta</title>
   
   <!-- Favicon con el logo oficial -->
@@ -227,6 +227,15 @@
       .florabot-minimizing {
         transform-origin: bottom center;
         animation: florabotMinimizeMobile 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+      }
+      #florabot-dialog-panel {
+        height: var(--florabot-panel-height, 85dvh) !important;
+        max-height: var(--florabot-panel-max-height, 100dvh) !important;
+        bottom: var(--florabot-panel-bottom, 0px) !important;
+      }
+      #florabot-messages {
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
       }
     }
 
@@ -5251,6 +5260,7 @@
       // Prevenir cierre fantasma inmediato provocado por eventos de toque en móvil (<450ms)
       if (Date.now() - floraBotOpenedAt < 450) return;
 
+      document.body.classList.remove('overflow-hidden');
       const panel = document.getElementById('florabot-dialog-panel');
       const backdrop = document.getElementById('florabot-dialog-backdrop');
       if (panel) panel.classList.add('florabot-minimizing');
@@ -5272,7 +5282,11 @@
           closeOnboardingTour(true);
         }
         floraBotState.isOpen = true;
+        if (window.innerWidth < 640) {
+          document.body.classList.add('overflow-hidden');
+        }
         renderFloraBot();
+        syncFloraBotViewport();
         setTimeout(() => {
           const input = document.getElementById('florabot-input');
           const isMobile = window.innerWidth < 768;
@@ -5286,6 +5300,53 @@
       const messagesContainer = document.getElementById('florabot-messages');
       if (messagesContainer) {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    }
+
+    function syncFloraBotViewport() {
+      if (window.innerWidth >= 640) {
+        const panel = document.getElementById('florabot-dialog-panel');
+        if (panel) {
+          panel.style.removeProperty('--florabot-panel-height');
+          panel.style.removeProperty('--florabot-panel-max-height');
+          panel.style.removeProperty('--florabot-panel-bottom');
+        }
+        return;
+      }
+      const panel = document.getElementById('florabot-dialog-panel');
+      if (!panel || !floraBotState.isOpen) return;
+
+      if (window.visualViewport) {
+        const vv = window.visualViewport;
+        const winH = window.innerHeight;
+        // Si el viewport visual se redujo por el teclado virtual (Gboard)
+        const isKeyboardOpen = (winH - vv.height) > 100;
+        if (isKeyboardOpen) {
+          const targetHeight = Math.floor(vv.height);
+          panel.style.setProperty('--florabot-panel-height', `${targetHeight}px`);
+          panel.style.setProperty('--florabot-panel-max-height', `${targetHeight}px`);
+          const offsetBottom = Math.max(0, Math.floor(winH - (vv.offsetTop + vv.height)));
+          panel.style.setProperty('--florabot-panel-bottom', `${offsetBottom}px`);
+        } else {
+          panel.style.removeProperty('--florabot-panel-height');
+          panel.style.removeProperty('--florabot-panel-max-height');
+          panel.style.setProperty('--florabot-panel-bottom', '0px');
+        }
+      }
+    }
+
+    function onFloraBotInputFocus() {
+      if (window.innerWidth < 640) {
+        window.scrollTo(0, 0);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          syncFloraBotViewport();
+          scrollFloraBotToBottom();
+        }, 100);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          scrollFloraBotToBottom();
+        }, 300);
       }
     }
 
@@ -5529,7 +5590,7 @@
       ];
 
       const chipsHtml = (floraBotState.messages.length <= 2 && !floraBotState.isThinking) ? `
-        <div class="px-3 py-2 border-t ${headerBg} flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x overscroll-contain">
+        <div class="px-3 py-2 border-t ${headerBg} flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x overscroll-contain shrink-0">
           ${quickChips.map(chip => `
             <button
               onclick="sendFloraBotMessage('${chip.text.replace(/'/g, "\\'")}')"
@@ -5563,15 +5624,15 @@
           id="florabot-dialog-panel"
           role="dialog"
           aria-label="Panel de Asistente Botánico Inteligente FloraBot"
-          class="fixed inset-x-0 bottom-0 sm:inset-auto sm:right-6 sm:bottom-6 z-50 w-full sm:w-[440px] h-[85vh] sm:h-[620px] max-h-[100dvh] sm:max-h-[calc(100vh-4rem)] ${modalBg} border-t sm:border border-inherit rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden florabot-maximize-anim"
+          class="fixed inset-x-0 bottom-0 sm:inset-auto sm:right-6 sm:bottom-6 z-50 w-full sm:w-[440px] h-[85dvh] sm:h-[620px] max-h-[100dvh] sm:max-h-[calc(100vh-4rem)] ${modalBg} border-t sm:border border-inherit rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden florabot-maximize-anim"
         >
           <!-- Indicador táctil superior (Grab handle) solo en móvil -->
-          <div class="sm:hidden w-full pt-2.5 pb-1 flex justify-center ${headerBg} cursor-pointer select-none" onclick="closeFloraBot()">
+          <div class="sm:hidden w-full pt-2.5 pb-1 flex justify-center ${headerBg} cursor-pointer select-none shrink-0" onclick="closeFloraBot()">
             <div class="w-10 h-1 rounded-full ${isOled ? 'bg-neutral-700' : 'bg-neutral-300'}"></div>
           </div>
 
           <!-- Cabecera -->
-          <div class="px-4 py-3 border-b ${headerBg} flex items-center justify-between">
+          <div class="px-4 py-3 border-b ${headerBg} flex items-center justify-between shrink-0">
             <div class="flex items-center gap-3 overflow-hidden min-w-0">
               <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#2ECC71] to-[#27AE60] flex items-center justify-center text-white shadow-md shrink-0">
                 <i data-lucide="sprout" class="w-5 h-5"></i>
@@ -5617,7 +5678,7 @@
           </div>
 
           <!-- Mensajes -->
-          <div id="florabot-messages" class="flex-1 overflow-y-auto p-4 space-y-3.5 ${chatAreaBg}">
+          <div id="florabot-messages" class="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 ${chatAreaBg}">
             ${messagesHtml}
           </div>
 
@@ -5626,7 +5687,7 @@
 
           <!-- Barra de Acción Rápida: Ajustar Parámetros de la Especie Consultada -->
           ${floraBotState.lastQueriedPlant ? `
-            <div class="px-3.5 py-2 border-t ${headerBg} flex items-center justify-between gap-2 ${isOled ? 'bg-[#152018]' : 'bg-[#EDFDF1]'}">
+            <div class="px-3.5 py-2 border-t ${headerBg} flex items-center justify-between gap-2 shrink-0 ${isOled ? 'bg-[#152018]' : 'bg-[#EDFDF1]'}">
               <div class="flex items-center gap-1.5 min-w-0">
                 <i data-lucide="sliders" class="w-3.5 h-3.5 text-[#2ECC71] shrink-0"></i>
                 <span class="text-[11px] font-semibold text-[#2ECC71] truncate">Configurar ${floraBotState.lastQueriedPlant.nombre_comun}:</span>
@@ -5644,13 +5705,14 @@
           <!-- Entrada de Texto con soporte safe area -->
           <form 
             onsubmit="event.preventDefault(); sendFloraBotMessage();"
-            class="p-3 border-t ${headerBg} flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+            class="p-3 border-t ${headerBg} flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0"
           >
             <input
               id="florabot-input"
               type="text"
               placeholder="Consulta sobre riego, plagas, hojas..."
               autocomplete="off"
+              onfocus="onFloraBotInputFocus()"
               ${floraBotState.isThinking ? 'disabled' : ''}
               class="flex-1 text-xs px-3.5 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 transition-all ${inputBg}"
             />
@@ -5667,10 +5729,19 @@
       `;
 
       lucide.createIcons();
+      if (floraBotState.isOpen) {
+        syncFloraBotViewport();
+      }
     }
 
     // Inicialización al cargar la página
     window.addEventListener('DOMContentLoaded', () => {
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', syncFloraBotViewport);
+        window.visualViewport.addEventListener('scroll', syncFloraBotViewport);
+      }
+      window.addEventListener('resize', syncFloraBotViewport);
+
       // Detección de parámetros de activación de cuenta por correo en la URL
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('activated') === 'true') {
