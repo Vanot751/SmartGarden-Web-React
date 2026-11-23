@@ -6,6 +6,7 @@ import {
   Bot,
   ChartNoAxesCombined,
   Droplets,
+  Download,
   Leaf,
   Moon,
   ShieldCheck,
@@ -113,6 +114,17 @@ export default function Landing() {
               >
                 Crear cuenta
               </Link>
+              <a
+                href="/SmarGardenApp.apk"
+                download="SmartGarden.apk"
+                className={`group inline-flex h-12 items-center justify-center gap-2 rounded-2xl border px-5 text-sm font-bold transition-all ${
+                  isOled ? 'border-[#2ECC71]/30 bg-[#102018] text-[#78DFA3] hover:border-[#2ECC71] hover:bg-[#15321F]' : 'border-[#B8DFC5] bg-[#EAF7EE] text-[#237A43] hover:border-[#2ECC71] hover:bg-[#DDF2E5]'
+                }`}
+                aria-label="Descargar la aplicación Android SmartGarden"
+              >
+                <Download className="h-4 w-4" />
+                Descargar APK
+              </a>
             </div>
 
             <div className={`mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-semibold ${muted}`}>
