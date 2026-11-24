@@ -206,9 +206,9 @@ input {
   }
 }
 
-/* Escala equilibrada del 15% para el Landing en pantallas de escritorio sin alterar el modo móvil */
+/* Escala equilibrada (+10%) para el Landing en pantallas de escritorio sin alterar el modo móvil */
 @media (min-width: 1024px) {
   .landing-desktop-zoom {
-    zoom: 1.15;
+    zoom: 1.1;
   }
 }
