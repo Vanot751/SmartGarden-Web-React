@@ -36,12 +36,23 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Ruta pública raíz: si ya existe sesión iniciada (token JWT),
+// redirige directamente a /dashboard; de lo contrario, presenta el Landing.
+function RootRoute() {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Landing />;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={<RootRoute />} />
+          <Route path="/landing" element={<Landing />} />
           <Route path="/admin" element={<AdminRedirect />} />
           <Route path="/admin/*" element={<AdminRedirect />} />
           <Route path="/login" element={<Login />} />
