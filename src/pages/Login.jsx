@@ -352,7 +352,7 @@ export default function Login() {
             )}
 
             {!isRegister && (
-              <div className="flex items-center justify-between pt-1 pb-2">
+              <div className="flex items-center pt-1 pb-2">
                 <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-[#718096] hover:text-[#2ECC71] transition-colors">
                   <input
                     type="checkbox"
@@ -362,7 +362,6 @@ export default function Login() {
                   />
                   <span>Recordar usuario</span>
                 </label>
-                <span className="text-[11px] text-[#A0AEC0]">Auth SimpleJWT</span>
               </div>
             )}
 
