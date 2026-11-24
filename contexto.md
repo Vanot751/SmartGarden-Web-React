@@ -38,6 +38,17 @@ y es la única fuente de verdad para autenticación, módulos, plantas y telemet
    - Despliegue y contracción suave con CSS Grid físico (`grid-template-rows: 0fr ➔ 1fr`).
    - Opciones táctiles para cambio de tema (OLED / Pastel), Guía Interactiva, refresco de sensores y cierre de sesión.
 
+4. **Landing Page y Vitrina Tecnológica (`pages/Landing.jsx`):**
+   - Carrusel multimedia interactivo con video MP4 en loop continuo (`crop-gemelo3d.mp4`) y soporte táctil para móviles.
+   - Sincronización en tiempo real de métricas fisiológicas y estados de maceta según el slide activo.
+   - Estilizado de alto impacto con botón de exploración animado tipo latido (`animate-heartbeat`), badges de confianza centrados y descarga directa de APK Android.
+   - Pie de página institucional centrado con autoría (Alexander Cortés - Angelo Zamora, INACAP 2026).
+
+5. **Enrutamiento Inteligente y Protección de Sesión (`App.jsx`):**
+   - Ruta raíz (`/`) con componente condicional `RootRoute`: si el operador posee token activo en `localStorage`, ingresa de forma automática y transparente a `/dashboard`; si no posee sesión, accede al Landing Page.
+   - Ruta explícita `/landing` para consulta informativa libre desde cualquier estado de autenticación.
+   - Ruta protegida `/dashboard` con `ProtectedRoute` para blindar el portal Three.js de accesos no autorizados.
+
 La búsqueda de especies, la ingesta de telemetría y el procesamiento de IA son responsabilidades de
 API-Django. React no contiene claves de servicios externos ni implementa
 modelos o migraciones Django.

@@ -54,6 +54,20 @@ Portal web interactivo para la supervisión y gestión de cultivos botánicos in
 - Despliegue y contracción suave mediante **CSS Grid físico (`grid-template-rows: 0fr ➔ 1fr`)** con respuesta táctil (`active:scale-98`).
 - Acceso directo a Modo Oscuro OLED / Modo Claro Pastel, Guía Interactiva, Sincronización Manual de Telemetría y Cierre de Sesión.
 
+### 9. Landing Page Interactiva y Vitrina Tecnológica
+- **Carrusel Multimedia con Video 3D**: Integración de video MP4 (`crop-gemelo3d.mp4`) en bucle continuo y póster de alta definición que muestra el gemelo 3D girando interactivamente junto a fotografías botánicas del cultivo.
+- **Sincronización Dinámica de Métricas**: Al deslizar entre diapositivas (Kumquat 3D, Telemetría en Vivo, FloraBot IA, Limonero en Maceta), las tarjetas laterales de métricas y la barra inferior de taxonomía/riego se actualizan de forma instantánea y armónica.
+- **Jerarquía Tipográfica Equilibrada**: Valores numéricos y estados con escala visual balanceada (`text-lg sm:text-xl font-bold`) y badges verdes anclados (`whitespace-nowrap flex-shrink-0`) con alineación simétrica uniforme.
+- **Botón de Exploración con Efecto Latido**: Animación `animate-heartbeat` con contorno rojo pulsante y feedback táctil.
+- **Insignias de Confianza Centradas**: Disposición multicanal centrada para *Acceso seguro*, *Datos en tiempo real* y *Multi planta*.
+- **Descarga Directa de APK**: Enlace optimizado con headers de tipo MIME para instalar la aplicación nativa Android (`/SmarGardenApp.apk`).
+- **Pie de Página Institucional**: Créditos oficiales centrados reconociendo a los desarrolladores y la institución educativa (INACAP 2026).
+
+### 10. Enrutamiento Inteligente con Redirección de Sesión
+- **Ruta Raíz Condicional (`/`)**: Detecta automáticamente si el usuario cuenta con credenciales activas (`access_token` en `localStorage`). Si está autenticado, lo redirige sin fricción directamente al panel operativo (`/dashboard`); de lo contrario, muestra el Landing Page.
+- **Ruta Pública Explícita (`/landing`)**: Disponible para que cualquier usuario autenticado pueda visualizar la vitrina del producto sin cerrar su sesión.
+- **Ruta Protegida (`/dashboard`)**: Blindada con `ProtectedRoute`, garantizando que únicamente usuarios autenticados accedan a las herramientas operativas.
+
 ---
 
 ## 🛠️ Tecnologías Empleadas
