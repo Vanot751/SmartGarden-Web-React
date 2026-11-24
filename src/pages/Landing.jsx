@@ -418,7 +418,7 @@ export default function Landing() {
 
       <main>
         <section className="mx-auto grid min-h-[calc(100vh-72px)] max-w-7xl items-center gap-12 px-5 py-14 sm:px-8 lg:grid-cols-[0.92fr_1.08fr] lg:py-20">
-          <div className="relative z-10 max-w-xl">
+          <div className="relative z-10 max-w-xl lg:-translate-y-16">
             <div className={`mb-6 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${isOled ? 'border-[#2ECC71]/25 bg-[#102018] text-[#78DFA3]' : 'border-[#B8DFC5] bg-[#EAF7EE] text-[#237A43]'}`}>
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2ECC71] opacity-60" />
@@ -474,7 +474,7 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-[650px] lg:max-w-none">
+          <div className="relative mx-auto w-full max-w-[650px] lg:max-w-none lg:-translate-y-16">
             <div className={`absolute inset-10 rounded-full blur-3xl ${isOled ? 'bg-[#2ECC71]/10' : 'bg-[#2ECC71]/15'}`} />
             <div className={`relative overflow-hidden rounded-[32px] border p-3 shadow-[0_30px_80px_rgba(45,55,72,0.12)] ${card}`}>
               <div className={`flex items-center justify-between border-b px-4 py-3 ${isOled ? 'border-[#262626]' : 'border-[#E6E4DC]'}`}>
