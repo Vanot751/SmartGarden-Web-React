@@ -379,7 +379,9 @@ export default function Landing() {
       <div className={`pointer-events-none absolute left-[-10rem] top-24 h-96 w-96 rounded-full blur-[100px] ${isOled ? 'bg-[#123D25]/20' : 'bg-[#CDEFD7]/70'}`} />
       <div className={`pointer-events-none absolute right-[-12rem] top-[-8rem] h-[34rem] w-[34rem] rounded-full blur-[130px] ${isOled ? 'bg-[#102B3D]/20' : 'bg-[#DCEBFF]/60'}`} />
 
-      <header className={`sticky top-0 z-40 border-b backdrop-blur-xl ${header}`}>
+      {/* Contenedor principal con escala del 15% en escritorio y 100% natural en móviles */}
+      <div className="landing-desktop-zoom">
+        <header className={`sticky top-0 z-40 border-b backdrop-blur-xl ${header}`}>
         <nav className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 sm:px-8" aria-label="Navegación principal">
           <Link to="/" className="flex items-center gap-3" aria-label="Ir al inicio">
             <img src="/SmartGarden.png" alt="" className="h-10 w-10 rounded-2xl object-contain shadow-sm" />
@@ -717,12 +719,13 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className={`border-t ${isOled ? 'border-[#262626]' : 'border-[#E6E4DC]'}`}>
-        <div className={`mx-auto flex max-w-7xl flex-col items-center justify-center gap-1.5 px-5 py-8 text-center text-xs sm:px-8 ${muted}`}>
-          <p>© 2026 SmartGarden • Desarrolladores: Alexander Cortés - Angelo Zamora</p>
-          <p>Sistema IoT Autónomo • INACAP 2026</p>
-        </div>
-      </footer>
+        <footer className={`border-t ${isOled ? 'border-[#262626]' : 'border-[#E6E4DC]'}`}>
+          <div className={`mx-auto flex max-w-7xl flex-col items-center justify-center gap-1.5 px-5 py-8 text-center text-xs sm:px-8 ${muted}`}>
+            <p>© 2026 SmartGarden • Desarrolladores: Alexander Cortés - Angelo Zamora</p>
+            <p>Sistema IoT Autónomo • INACAP 2026</p>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }

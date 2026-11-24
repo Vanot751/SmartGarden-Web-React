@@ -205,3 +205,10 @@ input {
     transform: translateY(100%);
   }
 }
+
+/* Escala equilibrada del 15% para el Landing en pantallas de escritorio sin alterar el modo móvil */
+@media (min-width: 1024px) {
+  .landing-desktop-zoom {
+    zoom: 1.15;
+  }
+}
