@@ -52,8 +52,8 @@ const LEAF_COLORS = [
 // Diapositivas para el carrusel interno con métricas sincronizadas por vista
 const POT_SLIDES = [
   {
-    id: 'tomatera',
-    title: 'Tomatera',
+    id: 'albahaca',
+    title: 'Albahaca',
     category: 'Maceta activa',
     badge: 'EN VIVO',
     image: '/plants/albahaca.jpg',
@@ -73,7 +73,7 @@ const POT_SLIDES = [
   },
   {
     id: 'gemelo-3d',
-    title: 'Kumquat en 3D',
+    title: 'Modelo en 3D',
     category: 'Gemelo Digital 3D',
     badge: '3D INTERACTIVO',
     video: '/showcase/crop-gemelo3d.mp4',
