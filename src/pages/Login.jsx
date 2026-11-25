@@ -64,7 +64,11 @@ export default function Login() {
     setSessionExpiredNotice(false);
 
     if (!username.trim() || !password.trim()) {
-      setError('Por favor ingresa tu usuario y contraseña.');
+      setError(
+        isRegister
+          ? 'Por favor ingresa tu usuario y contraseña.'
+          : 'Por favor ingresa tu usuario o correo y contraseña.'
+      );
       return;
     }
 
@@ -105,14 +109,15 @@ export default function Login() {
         });
       }
 
-      const { access, refresh } = response.data;
+      const { access, refresh, username: canonicalUsername, user } = response.data;
+      const resolvedUsername = canonicalUsername || user?.username || username.trim();
 
       localStorage.setItem('access_token', access);
       localStorage.setItem('refresh_token', refresh);
-      localStorage.setItem('operator_user', username.trim());
+      localStorage.setItem('operator_user', resolvedUsername);
       if (rememberMe) {
         localStorage.setItem('smartgarden_last_user', username.trim());
-        localStorage.setItem('remembered_operator', username.trim());
+        localStorage.setItem('remembered_operator', resolvedUsername);
       } else {
         localStorage.removeItem('smartgarden_last_user');
         localStorage.removeItem('remembered_operator');
@@ -130,7 +135,7 @@ export default function Login() {
         } else if (errorData && errorData.error) {
           setError(errorData.error);
         } else if (err.response.status === 401) {
-          setError('Credenciales incorrectas. Verifica usuario y contraseña.');
+          setError('Credenciales incorrectas. Verifica tu usuario/correo y contraseña.');
         } else if (err.response.status === 400) {
           setError(errorData?.detail || 'Datos de registro inválidos. Verifica los campos.');
         } else {
@@ -251,7 +256,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[#718096] uppercase tracking-wider mb-1.5 ml-1">
-                Operador / Usuario
+                {isRegister ? 'Operador / Usuario' : 'Usuario o Correo'}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A0AEC0]">
@@ -261,7 +266,7 @@ export default function Login() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="ej. operador_botanico"
+                  placeholder={isRegister ? 'ej. operador_botanico' : 'ej. operador_botanico o correo@inacap.cl'}
                   required
                   disabled={loading}
                   className={`w-full pl-10 pr-4 py-3 rounded-2xl text-sm placeholder-[#718096] focus:outline-none focus:ring-2 focus:ring-[#2ECC71]/40 border transition-all disabled:opacity-50 ${inputBg}`}
