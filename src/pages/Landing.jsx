@@ -16,6 +16,7 @@ import {
   Sprout,
   Sun,
   ThermometerSun,
+  User,
   Wifi,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
@@ -164,6 +165,20 @@ export default function Landing() {
   const [isBursting, setIsBursting] = useState(false);
   const [potIndex, setPotIndex] = useState(0);
   const [isSquareHovered, setIsSquareHovered] = useState(false);
+  const [sessionUser, setSessionUser] = useState(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return null;
+    return localStorage.getItem('operator_user') || 'Mi cuenta';
+  });
+
+  useEffect(() => {
+    const syncSession = () => {
+      const token = localStorage.getItem('access_token');
+      setSessionUser(token ? (localStorage.getItem('operator_user') || 'Mi cuenta') : null);
+    };
+    window.addEventListener('storage', syncSession);
+    return () => window.removeEventListener('storage', syncSession);
+  }, []);
 
   const currentPot = POT_SLIDES[potIndex];
 
@@ -402,16 +417,31 @@ export default function Landing() {
             >
               {isOled ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            <Link
-              to="/login"
-              className={`flex h-9 sm:h-10 items-center rounded-xl border px-3 sm:px-4 text-xs sm:text-sm font-bold transition-all ${
-                isOled 
-                  ? 'border-[#2ECC71]/35 bg-[#2ECC71]/10 text-[#2ECC71] hover:border-[#2ECC71] hover:bg-[#2ECC71] hover:text-white' 
-                  : 'border-[#2ECC71]/40 bg-[#EAF7EE] text-[#15803D] hover:border-[#2ECC71] hover:bg-[#2ECC71] hover:text-white'
-              }`}
-            >
-              Iniciar sesión
-            </Link>
+            {sessionUser ? (
+              <Link
+                to="/dashboard"
+                title={`Ir al panel de ${sessionUser}`}
+                className={`flex h-9 sm:h-10 items-center gap-1.5 rounded-xl border px-3 sm:px-4 text-xs sm:text-sm font-bold transition-all ${
+                  isOled
+                    ? 'border-[#2ECC71]/45 bg-[#10281B] text-[#2ECC71] hover:border-[#2ECC71] hover:bg-[#2ECC71] hover:text-white'
+                    : 'border-[#2ECC71]/45 bg-[#EAF7EE] text-[#15803D] hover:border-[#2ECC71] hover:bg-[#2ECC71] hover:text-white'
+                }`}
+              >
+                <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>{sessionUser}</span>
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className={`flex h-9 sm:h-10 items-center rounded-xl border px-3 sm:px-4 text-xs sm:text-sm font-bold transition-all ${
+                  isOled 
+                    ? 'border-[#2ECC71]/35 bg-[#2ECC71]/10 text-[#2ECC71] hover:border-[#2ECC71] hover:bg-[#2ECC71] hover:text-white' 
+                    : 'border-[#2ECC71]/40 bg-[#EAF7EE] text-[#15803D] hover:border-[#2ECC71] hover:bg-[#2ECC71] hover:text-white'
+                }`}
+              >
+                Iniciar sesión
+              </Link>
+            )}
           </div>
         </nav>
       </header>
